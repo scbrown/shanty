@@ -53,13 +53,35 @@ func TestDefaultStatusBarSegments(t *testing.T) {
 	if len(cfg.Left) != 1 || cfg.Left[0] != "session" {
 		t.Errorf("expected Left=[session], got %v", cfg.Left)
 	}
-	expected := []string{"cpu", "mem", "host", "clock"}
+	// The shantytown segments lead: they are the ones that want you to act.
+	// The ambient ones follow, and NONE of them may be dropped — adding an
+	// integration must not silently remove a feature someone already relies on,
+	// which is exactly what this test caught when `host` went missing.
+	expected := []string{"anchor", "events", "inbox", "crew", "harness", "cpu", "mem", "host", "clock"}
 	if len(cfg.Right) != len(expected) {
 		t.Errorf("expected Right=%v, got %v", expected, cfg.Right)
 	}
 	for i, e := range expected {
 		if cfg.Right[i] != e {
 			t.Errorf("expected Right[%d]=%q, got %q", i, e, cfg.Right[i])
+		}
+	}
+}
+
+// The shantytown segments must self-hide, or including them by default would
+// put five permanently-blank gaps in every non-shantytown user's status bar.
+func TestShantytownSegmentsAreInTheDefaultBar(t *testing.T) {
+	cfg := DefaultStatusBar()
+	for _, want := range []string{"anchor", "events", "inbox", "crew", "harness"} {
+		found := false
+		for _, got := range cfg.Right {
+			if got == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("shantytown segment %q missing from the default bar", want)
 		}
 	}
 }
