@@ -143,6 +143,36 @@ func (m *Manager) sessionExists(fullSessionName string) bool {
 	return cmd.Run() == nil
 }
 
+// Apply generates shanty's config and sources it into the socket's tmux server,
+// theming its sessions WITHOUT attaching.
+//
+// This makes "using shanty" a REPRODUCIBLE command rather than hand-typed host
+// state a tmux server restart loses. Pointed at a fleet
+// socket via SHANTY_TMUX_SOCKET, `shanty apply` puts the Dracula bar + segments
+// on every session at once and can be re-run after a restart, so no operator ever
+// types the `tmux -L <sock> set -g status-...` incantation. `attach` already
+// sources the same config on the way in, so an attach and an apply agree.
+func (m *Manager) Apply() error {
+	confPath, err := GenerateConfig()
+	if err != nil {
+		return fmt.Errorf("generating tmux config: %w", err)
+	}
+	// No server on this socket = nothing to theme. Say so rather than let
+	// source-file fail with a raw tmux error; a themed server with no sessions is
+	// not what the operator meant.
+	if exec.Command(m.tmuxBin, "-L", socketName, "list-sessions").Run() != nil {
+		return fmt.Errorf(
+			"no tmux server on socket %q — nothing to theme "+
+				"(set SHANTY_TMUX_SOCKET to the fleet's socket)", socketName)
+	}
+	if out, err := exec.Command(
+		m.tmuxBin, "-L", socketName, "source-file", confPath).CombinedOutput(); err != nil {
+		return fmt.Errorf("sourcing shanty config into %q: %v: %s",
+			socketName, err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 func (m *Manager) create(fullSessionName string) error {
 	confPath, err := GenerateConfig()
 	if err != nil {

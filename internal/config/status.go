@@ -59,11 +59,26 @@ func RenderStatusBar(theme Theme, cfg StatusBarConfig) string {
 	return out
 }
 
-// renderSegmentCalls builds tmux format strings that invoke shanty seg for each segment.
+// perAgentSegments read a shantytown identity ($SHANTY_AGENT, else the session).
+// They get #{session_name} passed so the SHARED bar renders each pane its own —
+// the fleet runs one status-right over many sessions. The others (crew, cpu,
+// clock, …) are fleet- or host-wide and need no session.
+var perAgentSegments = map[string]bool{
+	"anchor": true, "events": true, "inbox": true, "harness": true,
+}
+
+// renderSegmentCalls builds tmux format strings that invoke shanty seg for each
+// segment. A per-agent segment is passed #{session_name}, which tmux expands to
+// the session being drawn before running the command (verified: the arg arrives
+// as the literal session name), so the segment can derive its own agent.
 func renderSegmentCalls(names []string) string {
 	var parts []string
 	for _, name := range names {
-		parts = append(parts, fmt.Sprintf("#(shanty seg %s)", name))
+		if perAgentSegments[name] {
+			parts = append(parts, fmt.Sprintf("#(shanty seg %s #{session_name})", name))
+		} else {
+			parts = append(parts, fmt.Sprintf("#(shanty seg %s)", name))
+		}
 	}
 	return strings.Join(parts, " ")
 }
