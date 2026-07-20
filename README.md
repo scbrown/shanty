@@ -48,6 +48,11 @@ main
 work
 monitoring
 
+# With shantytown (st) installed, `shanty ls` becomes a crew selector — each row
+# is name + state (busy/idle/waiting/saturated, st's own verdict) + current item
+# + settings currency, with the ones needing attention (blocked/waiting) first.
+# Without st, or with --plain, it stays the plain name list above.
+
 $ shanty attach work
 # ... config is regenerated and sourced, then you attach
 ```
@@ -159,7 +164,8 @@ go install github.com/scbrown/shanty/cmd/shanty@latest
 ```bash
 shanty                  # launch or attach to the default session
 shanty -s work          # a named session
-shanty ls               # list active shanty sessions
+shanty ls               # list sessions — a crew selector when shantytown is present
+shanty ls --plain       # plain name list only (for scripting)
 shanty attach work      # attach to one by name
 ```
 
