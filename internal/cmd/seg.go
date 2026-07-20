@@ -22,9 +22,17 @@ shantytown segments: anchor, crew, events, inbox, harness
 These require the st CLI on PATH and render empty without it. All but crew also
 need $SHANTY_AGENT set, and render empty when it is not.
 See https://github.com/scbrown/shantytown`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.RangeArgs(1, 2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
+
+		// Optional second arg: the tmux session this render is for, passed from
+		// #{session_name}. It is the per-pane identity fallback for the shared
+		// fleet bar — a segment learns which agent it draws from the session it
+		// is drawn in when $SHANTY_AGENT is not exported per pane.
+		if len(args) == 2 {
+			segments.SetSession(args[1])
+		}
 
 		if name == "list" {
 			for _, n := range segments.AllNames() {

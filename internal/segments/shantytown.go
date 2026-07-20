@@ -3,15 +3,45 @@ package segments
 import (
 	"fmt"
 	"os"
+	"strings"
 )
 
-// agentName resolves this agent's shantytown identity from $SHANTY_AGENT, the
-// same variable st itself uses. An empty result means "we cannot tell who we
-// are", and every segment below treats that exactly like a missing st binary:
-// render nothing. Guessing an identity would put another agent's plate, inbox
-// and event count on this operator's status bar.
+// sessionPrefix is shanty's own session-naming prefix; the agent identity is the
+// session name with it stripped (shanty-weaver -> weaver).
+const sessionPrefix = "shanty-"
+
+// sessionName is the tmux session the segment is being drawn in, set by the seg
+// command from tmux's #{session_name}. It is the per-pane identity fallback the
+// SHARED fleet bar needs: one tmux server has one $SHANTY_AGENT env, but many
+// sessions, so a global status-right rendered $SHANTY_AGENT-based segments blank
+// for everyone. Deriving the agent from the session each segment is drawn in
+// lets ONE bar show each pane its OWN anchor/events/inbox/harness.
+var sessionName string
+
+// SetSession records the session the current render is for (the seg command
+// passes it from #{session_name}).
+func SetSession(s string) {
+	sessionName = s
+}
+
+// agentName resolves this agent's shantytown identity.
+//
+// $SHANTY_AGENT wins — it is the same variable st itself uses, so a pane that
+// exports its own identity is authoritative. Otherwise the identity is DERIVED
+// from the session name by stripping shanty's own prefix (shanty-weaver ->
+// weaver): that is how a shared bar over many sessions gives each its own
+// segments. A session that carries no shanty- prefix (a foreign launcher's pane)
+// derives no agent here and the segment simply renders nothing — the same safe
+// empty every segment already falls back to. An empty result still means "we
+// cannot tell who we are"; guessing would put another agent's plate on this bar.
 func agentName() string {
-	return os.Getenv("SHANTY_AGENT")
+	if a := os.Getenv("SHANTY_AGENT"); a != "" {
+		return a
+	}
+	if strings.HasPrefix(sessionName, sessionPrefix) {
+		return strings.TrimPrefix(sessionName, sessionPrefix)
+	}
+	return ""
 }
 
 // stReady reports whether we can ask st anything at all: the binary must be on
