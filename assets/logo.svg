@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" role="img" aria-label="Shanty logo — a shack inside a terminal window, in the Dracula palette">
+  <title>Shanty</title>
+
+  <!-- Terminal window body (opaque, so the mark reads on light and dark backgrounds) -->
+  <rect x="4" y="4" width="192" height="192" rx="16" fill="#282a36"/>
+  <rect x="4" y="4" width="192" height="192" rx="16" fill="none" stroke="#bd93f9" stroke-width="2"/>
+
+  <!-- Title bar -->
+  <path d="M4 20a16 16 0 0 1 16-16h160a16 16 0 0 1 16 16v14H4z" fill="#44475a"/>
+  <circle cx="24" cy="19" r="4.5" fill="#ff5555"/>
+  <circle cx="40" cy="19" r="4.5" fill="#ffb86c"/>
+  <circle cx="56" cy="19" r="4.5" fill="#50fa7b"/>
+
+  <!-- Chimney (drawn behind the roof) -->
+  <rect x="124" y="62" width="11" height="26" rx="2" fill="#6272a4"/>
+  <!-- Smoke -->
+  <path d="M129 58c6-4 0-9 6-13" fill="none" stroke="#6272a4" stroke-width="3" stroke-linecap="round" opacity="0.8"/>
+
+  <!-- Shack body -->
+  <rect x="62" y="100" width="76" height="52" fill="#bd93f9"/>
+
+  <!-- Roof -->
+  <path d="M100 60 158 104H42z" fill="#ff79c6"/>
+
+  <!-- Lit windows -->
+  <rect x="70" y="110" width="15" height="15" rx="2" fill="#8be9fd"/>
+  <rect x="115" y="110" width="15" height="15" rx="2" fill="#8be9fd"/>
+
+  <!-- Door -->
+  <rect x="90" y="116" width="20" height="36" rx="2" fill="#282a36"/>
+  <circle cx="105" cy="135" r="2" fill="#f8f8f2"/>
+
+  <!-- Ground line -->
+  <path d="M36 152h128" stroke="#6272a4" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Prompt: chevron, typed line, cursor -->
+  <path d="M58 167l8 7-8 7" fill="none" stroke="#50fa7b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="76" y="172" width="46" height="4" rx="2" fill="#f8f8f2" opacity="0.55"/>
+  <rect x="130" y="165" width="9" height="18" rx="1.5" fill="#8be9fd"/>
+</svg>

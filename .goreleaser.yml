@@ -1,0 +1,38 @@
+version: 2
+
+builds:
+  - main: ./cmd/shanty
+    binary: shanty
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/scbrown/shanty/internal/cmd.Version={{.Version}}
+      - -X github.com/scbrown/shanty/internal/cmd.Commit={{.Commit}}
+      - -X github.com/scbrown/shanty/internal/cmd.BuildTime={{.Date}}
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+      - themes/*
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^chore:"
+      - "^ci:"

@@ -1,0 +1,10 @@
+name = "dracula"
+
+bg             = "#282a36"
+fg             = "#f8f8f2"
+status_bg      = "#44475a"
+highlight      = "#bd93f9"
+active_border  = "#50fa7b"
+inactive_border = "#6272a4"
+alert          = "#ff5555"
+warning        = "#ffb86c"

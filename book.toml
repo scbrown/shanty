@@ -1,0 +1,8 @@
+[book]
+title = "Shanty"
+authors = ["scbrown"]
+language = "en"
+src = "docs/src"
+
+[output.html]
+git-repository-url = "https://github.com/scbrown/shanty"
