@@ -1,0 +1,295 @@
+package stread
+
+import (
+	"errors"
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func TestParseCrewReadsNameRoleStateCurrency(t *testing.T) {
+	// Real `st crew` shape: name role up currency state pane. The parse must be
+	// position-tolerant — shanty does not own st's column order — so each field is
+	// identified by its own closed vocabulary, never by index.
+	out := `
+  arnold      worker         up       unknown  saturated·948k   sess-arnold
+  billy       administrator  up       STALE    busy             sess-billy
+  franklin    worker         up       STALE    busy+1sh         sess-franklin
+  kelly       lead           up       current  idle             sess-kelly
+  noise line with no verdict at all
+
+  1 free: kelly
+  3 busy: arnold, billy, franklin
+
+  ⚠ 1 agent(s) are running settings OLDER than the file on disk: billy
+`
+	crew := ParseCrew(out)
+	if len(crew) != 4 {
+		t.Fatalf("ParseCrew got %d entries, want 4 (prose lines dropped): %+v", len(crew), crew)
+	}
+	// The summary line's second field ("busy:") is verdict-shaped, so a
+	// verdict-only filter admitted a crew member literally named "3". Requiring a
+	// role too is what keeps st's own prose out of the roster.
+	for _, prose := range []string{"1", "3", "⚠", "noise"} {
+		if e, ok := crew[prose]; ok {
+			t.Errorf("prose token %q parsed as a crew member: %+v", prose, e)
+		}
+	}
+	for name, want := range map[string]Entry{
+		"arnold":   {Role: "worker", State: "saturated·948k", Currency: "unknown"},
+		"billy":    {Role: "administrator", State: "busy", Currency: "STALE"},
+		"franklin": {Role: "worker", State: "busy+1sh", Currency: "STALE"},
+		"kelly":    {Role: "lead", State: "idle", Currency: "current"},
+	} {
+		if got := crew[name]; got != want {
+			t.Errorf("crew[%q] = %+v, want %+v", name, got, want)
+		}
+	}
+}
+
+func TestStateWord(t *testing.T) {
+	for cell, want := range map[string]string{
+		"busy":           "busy",
+		"idle":           "idle",
+		"waiting":        "waiting",
+		"saturated·948k": "saturated", // a stat rides in the cell; the verdict stands
+		"busy+1sh":       "busy",
+		"?":              "?",
+		"":               "",
+		"worker":         "", // a role is not a verdict
+		"current":        "", // a currency is not a verdict
+	} {
+		if got := StateWord(cell); got != want {
+			t.Errorf("StateWord(%q) = %q, want %q", cell, got, want)
+		}
+	}
+}
+
+func TestBusy(t *testing.T) {
+	// Busy exists to catch a contradiction the bar must not hide: an agent st calls
+	// busy whose plate reads empty is not idle, it is unreadable. saturated and
+	// queued count as busy for that purpose — all three mean work is in flight.
+	for cell, want := range map[string]bool{
+		"busy": true, "saturated·948k": true, "queued": true,
+		"idle": false, "waiting": false, "wedged": false, "?": false, "": false,
+	} {
+		if got := Busy(cell); got != want {
+			t.Errorf("Busy(%q) = %v, want %v", cell, got, want)
+		}
+	}
+}
+
+func TestTitleForReadsThePlateLine(t *testing.T) {
+	full := `
+  You are villiers — worker, reports to moneypenny.
+
+  ON YOUR PLATE
+    ▶ ss-5x22f  status display: missing stats, crew name, task summary        (in_progress)
+
+  YOUR LEAD
+    moneypenny (administrator) — up. Your stop events go to them.
+`
+	title, status := titleFor(full, "ss-5x22f")
+	if want := "status display: missing stats, crew name, task summary"; title != want {
+		t.Errorf("title = %q, want %q", title, want)
+	}
+	if status != "in_progress" {
+		t.Errorf("status = %q, want in_progress", status)
+	}
+}
+
+func TestTitleForGivesUpQuietly(t *testing.T) {
+	// A layout we cannot read costs the TITLE, never the identity: the id came from
+	// the machine-readable --short flag, so the segment still shows something true.
+	title, status := titleFor("  ON YOUR PLATE\n    nothing. `st go <item> <you>`\n", "ss-5x22f")
+	if title != "" || status != "" {
+		t.Errorf("titleFor on an empty plate = (%q, %q), want empty", title, status)
+	}
+}
+
+func TestParseStatsReadsTheAgentRow(t *testing.T) {
+	out := `st stats — last 24h
+  villiers       events=412    files=17  stops=6    tokens_in=180000 tokens_out=42000
+  bond           events=88     files=3   stops=1    tokens_in=9000 tokens_out=2000
+  skills: writing-plans×3
+  tools:  Bash×120, Read×98`
+	s := parseStats(out, "villiers")
+	if !s.Captured {
+		t.Fatal("Captured should be true when st reported a store")
+	}
+	if s.Events != 412 || s.Files != 17 || s.Stops != 6 {
+		t.Errorf("counts = %+v", s)
+	}
+	if s.TokensIn != 180000 || s.TokensOut != 42000 {
+		t.Errorf("tokens = %+v", s)
+	}
+	if got := s.Tokens(); got != 222000 {
+		t.Errorf("Tokens() = %d, want 222000", got)
+	}
+}
+
+func TestParseStatsAgentWithNoActivity(t *testing.T) {
+	// A store exists but holds nothing for this agent in the window. Zeros here are
+	// a MEASUREMENT, so Captured stays true — unlike the no-store case, where zeros
+	// would claim a crew did nothing when nobody was counting.
+	s := parseStats("st stats — last 24h\n  (no activity captured in the window)", "villiers")
+	if !s.Captured {
+		t.Error("Captured should be true: st has a store, this agent was just quiet")
+	}
+	if s.Events != 0 {
+		t.Errorf("events = %d, want 0", s.Events)
+	}
+}
+
+func TestStatsReportsNoStoreAsAnAnswerNotAnError(t *testing.T) {
+	// `st stats` exits NONZERO to say the capture store does not exist yet, and
+	// prints the explanation on stdout. Run must therefore hand back stdout
+	// alongside the error, and Stats must turn this into Captured=false with a nil
+	// error — it is a real, renderable state ("nobody is counting"), not a failure.
+	dir := t.TempDir()
+	fake := filepath.Join(dir, "st")
+	script := "#!/bin/sh\n" +
+		"echo 'st stats — no capture store yet (.shanty/stats.sqlite absent).'\n" +
+		"exit 1\n"
+	if err := os.WriteFile(fake, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SHANTY_ST_BIN", fake)
+	t.Setenv("SHANTY_SEG_NOCACHE", "1")
+	ResetBinForTest()
+	defer ResetBinForTest()
+
+	s, err := Stats("villiers")
+	if err != nil {
+		t.Fatalf("Stats returned an error for the no-store case: %v", err)
+	}
+	if s.Captured {
+		t.Error("Captured should be false when st has no store")
+	}
+}
+
+func TestRunReportsNotInstalled(t *testing.T) {
+	// An override that does not resolve is a configuration error, not a licence to
+	// fall back to some other binary the operator did not name.
+	t.Setenv("SHANTY_ST_BIN", filepath.Join(t.TempDir(), "absent"))
+	ResetBinForTest()
+	defer ResetBinForTest()
+
+	if Installed() {
+		t.Fatal("Installed() true with an unresolvable override")
+	}
+	if _, err := Run("crew"); !errors.Is(err, ErrNotInstalled) {
+		t.Errorf("Run error = %v, want ErrNotInstalled", err)
+	}
+}
+
+func TestRunSurfacesAFailure(t *testing.T) {
+	// A failing st must produce an ERROR, not an empty string. Collapsing failure
+	// to "" is what let a broken bar render as a blank one and read as healthy.
+	dir := t.TempDir()
+	fake := filepath.Join(dir, "st")
+	if err := os.WriteFile(fake, []byte("#!/bin/sh\necho boom >&2\nexit 3\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SHANTY_ST_BIN", fake)
+	t.Setenv("SHANTY_SEG_NOCACHE", "1")
+	ResetBinForTest()
+	defer ResetBinForTest()
+
+	out, err := Run("crew")
+	if err == nil {
+		t.Fatalf("Run returned no error for an st that exited 3 (out=%q)", out)
+	}
+	if errors.Is(err, ErrNotInstalled) {
+		t.Error("a failing st must not be reported as an absent one")
+	}
+}
+
+func TestRunUsesTheConfiguredWorkingDirectory(t *testing.T) {
+	// st resolves its tracker by walking up from its working directory, so the
+	// directory it runs in changes the ANSWER. A wrong cwd yields empty output with
+	// a zero exit — the silent-blank this knob exists to fix.
+	dir := t.TempDir()
+	fake := filepath.Join(dir, "st")
+	if err := os.WriteFile(fake, []byte("#!/bin/sh\npwd\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	wd := t.TempDir()
+	t.Setenv("SHANTY_ST_BIN", fake)
+	t.Setenv("SHANTY_ST_CWD", wd)
+	t.Setenv("SHANTY_SEG_NOCACHE", "1")
+	ResetBinForTest()
+	defer ResetBinForTest()
+
+	out, err := Run("anchor")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	// macOS resolves TempDir through a symlink, so compare resolved paths.
+	want, _ := filepath.EvalSymlinks(wd)
+	got, _ := filepath.EvalSymlinks(out)
+	if got != want {
+		t.Errorf("st ran in %q, want %q", got, want)
+	}
+}
+
+func TestCacheIsSharedAcrossCalls(t *testing.T) {
+	// Each `#(shanty seg …)` is its own process, so a process-local cache saved
+	// nothing and every render paid full price for every segment. The cache is on
+	// disk for that reason: a second call must not re-run st.
+	dir := t.TempDir()
+	fake := filepath.Join(dir, "st")
+	counter := filepath.Join(dir, "calls")
+	script := "#!/bin/sh\nprintf x >> " + counter + "\necho answer\n"
+	if err := os.WriteFile(fake, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SHANTY_ST_BIN", fake)
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	os.Unsetenv("SHANTY_SEG_NOCACHE")
+	ResetBinForTest()
+	defer ResetBinForTest()
+
+	for i := 0; i < 3; i++ {
+		got, err := Run("crew", "--count")
+		if err != nil {
+			t.Fatalf("Run %d: %v", i, err)
+		}
+		if got != "answer" {
+			t.Fatalf("Run %d = %q, want answer", i, got)
+		}
+	}
+	b, err := os.ReadFile(counter)
+	if err != nil {
+		t.Fatalf("reading call counter: %v", err)
+	}
+	if len(b) != 1 {
+		t.Errorf("st ran %d times across 3 calls, want 1 (the rest cached)", len(b))
+	}
+}
+
+func TestCacheKeyedByArguments(t *testing.T) {
+	// Two different questions must not share one answer.
+	dir := t.TempDir()
+	fake := filepath.Join(dir, "st")
+	if err := os.WriteFile(fake, []byte("#!/bin/sh\necho \"$@\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SHANTY_ST_BIN", fake)
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	os.Unsetenv("SHANTY_SEG_NOCACHE")
+	ResetBinForTest()
+	defer ResetBinForTest()
+
+	a, err := Run("anchor", "bond", "--short")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := Run("anchor", "villiers", "--short")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a == b {
+		t.Errorf("two different st calls returned the same cached answer %q", a)
+	}
+}

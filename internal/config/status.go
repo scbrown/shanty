@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -13,23 +15,33 @@ type StatusBarConfig struct {
 
 // DefaultStatusBar returns the default status bar segment layout.
 //
-// The shantytown segments lead the right side because they are the ones that
-// want you to act: what you hold, who is free, what is waiting on you. CPU and
-// memory are ambient and can sit further out.
+// The left pill is IDENTITY: the crew member's mark and name, at the one spot the
+// eye already goes. That is what makes a wall of panes tellable apart without
+// reading.
+//
+// The right side leads with the shantytown segments because they are the ones
+// that want you to act — who this is and what state they are in, what they hold,
+// what is waiting on them, then what they have actually been doing. CPU, memory,
+// host and clock are ambient and sit furthest out.
 //
 // They are included unconditionally, which is safe and deliberate. Every one
-// self-hides unless BOTH the `st` CLI is on PATH and $SHANTY_AGENT names an
-// agent, so a user who does not run shantytown sees exactly the old bar and
-// pays one `exec` per segment per interval to learn nothing changed. The
-// alternative — probing for `st` here and building a different default — would
-// make the bar's contents depend on installation order, which is worse than a
-// cheap no-op.
+// self-hides when no `st` binary exists at all, so a user who does not run
+// shantytown sees exactly the old bar and pays one exec per segment per interval
+// to learn nothing changed. The alternative — probing for `st` here and building a
+// different default — would make the bar's contents depend on installation order,
+// which is worse than a cheap no-op.
 func DefaultStatusBar() StatusBarConfig {
 	return StatusBarConfig{
 		Left:  []string{"session"},
-		Right: []string{"anchor", "events", "inbox", "crew", "harness", "cpu", "mem", "host", "clock"},
+		Right: []string{"crewid", "task", "events", "inbox", "crew", "stats", "harness", "cpu", "mem", "host", "clock"},
 	}
 }
+
+// StatusRightLength is the cell budget for the right side. The identity, plate
+// title and stats segments together need substantially more room than the old
+// count-only bar did; a budget that clips them would hide the very fields this
+// layout exists to show, and tmux truncates silently.
+const StatusRightLength = 200
 
 // RenderStatusBar generates tmux status bar configuration.
 // All segments are rendered by calling `shanty seg <name>` at status-interval.
@@ -49,7 +61,7 @@ func RenderStatusBar(theme Theme, cfg StatusBarConfig) string {
 	// Right status — dynamic segments via shanty seg
 	right := renderSegmentCalls(cfg.Right)
 	out += fmt.Sprintf("set-option -g status-right '%s '\n", right)
-	out += "set-option -g status-right-length 140\n"
+	out += fmt.Sprintf("set-option -g status-right-length %d\n", StatusRightLength)
 
 	// Window status
 	out += fmt.Sprintf("set-option -g window-status-current-style 'fg=%s,bg=%s,bold'\n",
@@ -64,6 +76,7 @@ func RenderStatusBar(theme Theme, cfg StatusBarConfig) string {
 // the fleet runs one status-right over many sessions. The others (crew, cpu,
 // clock, …) are fleet- or host-wide and need no session.
 var perAgentSegments = map[string]bool{
+	"session": true, "crewid": true, "task": true, "stats": true,
 	"anchor": true, "events": true, "inbox": true, "harness": true,
 	// `session` renders WHICH pane this is, so on a shared bar it is per-agent
 	// in exactly the same way. It was omitted here and left querying tmux for
@@ -73,17 +86,48 @@ var perAgentSegments = map[string]bool{
 	"session": true,
 }
 
+// selfPath is the absolute path of the running shanty binary, written into the
+// generated config instead of the bare name.
+//
+// This is the difference between a bar and a blank line. tmux runs `#(...)`
+// status commands from the SERVER's environment, and a tmux server started
+// outside a login shell routinely has a narrower PATH than the user — no
+// ~/.local/bin. `#(shanty seg …)` then fails to exec for EVERY segment and tmux
+// renders the lot as empty, which reads as a bar with nothing to say. Writing the
+// absolute path of the binary that generated the config takes PATH out of the
+// equation: the server runs the same shanty the operator ran.
+//
+// A bare "shanty" is the fallback when our own path is unknowable, which is no
+// worse than the old behaviour.
+func selfPath() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return "shanty"
+	}
+	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = resolved
+	}
+	// A path containing a space or a quote would break the single-quoted tmux
+	// option being generated. Rather than invent an escaping scheme for a case
+	// that does not arise in practice, fall back to the name and let PATH decide.
+	if strings.ContainsAny(exe, " '\"") {
+		return "shanty"
+	}
+	return exe
+}
+
 // renderSegmentCalls builds tmux format strings that invoke shanty seg for each
 // segment. A per-agent segment is passed #{session_name}, which tmux expands to
 // the session being drawn before running the command (verified: the arg arrives
 // as the literal session name), so the segment can derive its own agent.
 func renderSegmentCalls(names []string) string {
+	bin := selfPath()
 	var parts []string
 	for _, name := range names {
 		if perAgentSegments[name] {
-			parts = append(parts, fmt.Sprintf("#(shanty seg %s #{session_name})", name))
+			parts = append(parts, fmt.Sprintf("#(%s seg %s #{session_name})", bin, name))
 		} else {
-			parts = append(parts, fmt.Sprintf("#(shanty seg %s)", name))
+			parts = append(parts, fmt.Sprintf("#(%s seg %s)", bin, name))
 		}
 	}
 	return strings.Join(parts, " ")

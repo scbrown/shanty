@@ -35,24 +35,24 @@ func TestParseCrew(t *testing.T) {
 	if len(crew) != 4 {
 		t.Fatalf("parseCrew got %d entries, want 4 (noise line dropped): %+v", len(crew), crew)
 	}
-	if crew["arnold"].state != "saturated·948k" || crew["arnold"].currency != "unknown" {
+	if crew["arnold"].State != "saturated·948k" || crew["arnold"].Currency != "unknown" {
 		t.Errorf("arnold = %+v", crew["arnold"])
 	}
-	if crew["billy"].state != "busy" || crew["billy"].currency != "STALE" {
+	if crew["billy"].State != "busy" || crew["billy"].Currency != "STALE" {
 		t.Errorf("billy = %+v", crew["billy"])
 	}
-	if crew["kelly"].currency != "current" {
-		t.Errorf("kelly currency = %q, want current", crew["kelly"].currency)
+	if crew["kelly"].Currency != "current" {
+		t.Errorf("kelly currency = %q, want current", crew["kelly"].Currency)
 	}
 }
 
 func TestBuildRowsSortsAttentionFirst(t *testing.T) {
 	sessions := []string{"kelly", "arnold", "dearing", "billy", "main"}
 	crew := map[string]crewEntry{
-		"kelly":   {state: "idle", currency: "current"},
-		"arnold":  {state: "saturated·948k", currency: "unknown"},
-		"dearing": {state: "waiting", currency: "unknown"},
-		"billy":   {state: "busy", currency: "STALE"},
+		"kelly":   {State: "idle", Currency: "current"},
+		"arnold":  {State: "saturated·948k", Currency: "unknown"},
+		"dearing": {State: "waiting", Currency: "unknown"},
+		"billy":   {State: "busy", Currency: "STALE"},
 		// "main" is a live session st does not know as crew.
 	}
 	items := map[string]string{"dearing": "item-9", "arnold": "item-2"}
@@ -87,8 +87,8 @@ func TestBuildRowsStableWithinRank(t *testing.T) {
 	// Two agents at the same rank sort by name, deterministically.
 	sessions := []string{"zeb", "abe"}
 	crew := map[string]crewEntry{
-		"zeb": {state: "busy"},
-		"abe": {state: "busy"},
+		"zeb": {State: "busy"},
+		"abe": {State: "busy"},
 	}
 	rows := buildRows(sessions, crew, func(string) string { return "" })
 	if rows[0].Name != "abe" || rows[1].Name != "zeb" {

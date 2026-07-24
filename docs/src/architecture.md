@@ -10,7 +10,9 @@ shanty/
       root.go                  Default command (launch/attach)
       ls.go                    List sessions
       attach.go                Attach to session
+      apply.go                 Theme a socket's server without attaching
       seg.go                   Render a status bar segment
+      marks.go                 Show each crew member's emoji mark
     config/                    Configuration generation
       theme.go                 Theme loading and defaults
       keys.go                  Keybinding definitions
@@ -18,11 +20,18 @@ shanty/
     session/                   tmux session management
       manager.go               Session lifecycle (create, attach, list)
       tmux.go                  tmux config file generation
+    stread/                    The ONE reader for shantytown's st CLI
+      st.go                    Locate st, run it, cache the answer on disk
+      crew.go                  Parse `st crew` into per-agent role/state/currency
+      anchor.go                Read the held item's id and title
+      stats.go                 Read one agent's activity numbers
+    crewid/                    Per-agent emoji marks
+      emoji.go                 Palette, registry file, assign-once semantics
     segments/                  Status bar segment implementations
       segment.go               Segment interface
       registry.go              Segment name registry
-      cache.go                 Result caching for external commands
-      session.go               Session name segment
+      shantytown.go            crewid, task, stats, crew, events, inbox, harness
+      session.go               The identity pill
       clock.go                 Time segment
       host.go                  Hostname segment
       cpu.go                   CPU usage segment
@@ -72,4 +81,4 @@ Segments are registered in a global `Registry` map. The `seg` subcommand looks u
 
 ### Caching
 
-Segments that call external commands (e.g., the shantytown segments) use a shared cache with a 30-second TTL. This prevents hammering external tools when tmux refreshes the status bar every 5 seconds.
+Segments that call external commands (e.g., the shantytown segments) share a cache with a 15-second TTL. The cache lives **on disk**, not in memory: every `#(shanty seg …)` is its own short-lived process, so a process-local cache is never hit twice and each render paid full price. Only successful answers are cached — pinning a failure for the whole TTL would make the segments' visible error states lag reality.

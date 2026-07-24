@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `crewid` segment — who a pane belongs to: the agent's mark, name, role, and
+  shantytown's own busy/idle verdict, plus a flag when st reports the agent is
+  running settings older than the file on disk
+- `task` segment — the held item's id *and* its title, so a pane says what the
+  agent is working on rather than only which ticket number
+- `stats` segment — activity, files touched and token traffic from `st stats`
+- Per-crew emoji marks, assigned on first sight and never reassigned, stored in
+  `~/.config/shanty/agents.toml`; `shanty marks` lists them and `shanty apply`
+  assigns the whole roster in one deterministic pass
+- `SHANTY_ST_BIN`, `SHANTY_ST_CWD`, `SHANTY_SEG_NOCACHE` for pointing the
+  shantytown segments at the right binary, the right tracker, and around the cache
+
+### Fixed
+
+- **The whole status bar could render as a blank line.** tmux runs `#(...)` status
+  commands from the tmux *server's* environment; a server started outside a login
+  shell has no `~/.local/bin` on `PATH`, so every `#(shanty seg …)` failed to exec
+  and the entire status-right came out as spaces. The generated config now names
+  shanty by absolute path, and the segments locate `st` past `PATH` as well.
+- **Per-agent segments were blank for every shantytown fleet pane.** Identity was
+  derived by stripping only shanty's own `shanty-` prefix, but a fleet launched by
+  `st` names its sessions `st-<agent>`. Both prefixes are now recognized.
+- **The left pill said `shanty` on every pane.** It queried shanty's own socket for
+  the session name, which cannot work when shanty is pointed at a foreign socket
+  (`SHANTY_TMUX_SOCKET`); it now uses the session name tmux passes in, and shows
+  the agent's mark and name.
+- **st's summary prose was parsed as crew.** `st crew` follows its table with lines
+  like `9 busy: bond, felix`, whose second field is verdict-shaped — the session
+  picker read that as an agent named `9`. A row must now carry a role as well.
+- Segments no longer collapse failure to an empty string. Empty is reserved for
+  "no `st` installed"; anything else renders a visible `⚠`, including the
+  empty-plate-for-a-busy-agent contradiction that a naive `anchor --short` read
+  renders as a convincing blank.
+- The segment cache was process-local and therefore never hit — each `shanty seg`
+  invocation is its own process. It is now shared on disk.
+
+### Changed
+
+- Default status bar: `crewid task events inbox crew stats harness cpu mem host
+  clock`, with the right-hand budget raised to 200 cells so the identity, title
+  and stats fields are not silently truncated. `anchor` remains available but is
+  superseded by `task`.
+
 ## [0.2.0] - 2026-07-22
 
 ### Added

@@ -4,7 +4,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
+
+	"github.com/scbrown/shanty/internal/crewid"
+	"github.com/scbrown/shanty/internal/stread"
 )
 
 const sessionPrefix = "shanty-"
@@ -170,7 +174,65 @@ func (m *Manager) Apply() error {
 		return fmt.Errorf("sourcing shanty config into %q: %v: %s",
 			socketName, err, strings.TrimSpace(string(out)))
 	}
+	m.exportSegmentEnv()
+	assignCrewMarks()
 	return nil
+}
+
+// segmentEnv are the variables the status segments read which must exist in the
+// tmux SERVER's environment, not just the operator's shell.
+//
+// This is the trap they exist to close. tmux runs `#(...)` status commands from the
+// server's environment, so an operator who exports SHANTY_ST_CWD in their shell and
+// runs `shanty apply` gets a bar that still cannot find the tracker — and the
+// symptom is a blank segment, which looks like "nothing to report". `apply` is the
+// command that knows both values and the target server, so it is the right place to
+// carry them across.
+var segmentEnv = []string{"SHANTY_ST_BIN", "SHANTY_ST_CWD"}
+
+// exportSegmentEnv copies the segment configuration this process was given into the
+// target server. Only variables actually set are copied — writing an empty value
+// would override a server that was already configured correctly.
+//
+// Failure is silent: the theming apply came for has already succeeded, and a server
+// that refuses an environment write still renders a bar (a loud one, saying it
+// cannot reach the tracker — which is the honest outcome).
+func (m *Manager) exportSegmentEnv() {
+	for _, key := range segmentEnv {
+		val := os.Getenv(key)
+		if val == "" {
+			continue
+		}
+		_ = exec.Command(m.tmuxBin, "-L", socketName,
+			"set-environment", "-g", key, val).Run()
+	}
+}
+
+// assignCrewMarks gives every crew member st knows about its display mark, here
+// rather than lazily at render time.
+//
+// Doing it in one pass over the WHOLE sorted roster is what makes the assignment
+// deterministic from the roster rather than from the order panes happened to
+// redraw in. Lazy assignment in the segment remains as a safety net for an agent
+// created after this ran.
+//
+// Failure is silent on purpose: marks are cosmetic, and `apply`'s job — theming
+// the server — has already succeeded by this point. Refusing the whole apply
+// because an emoji file could not be written would be a worse trade.
+func assignCrewMarks() {
+	if !stread.Installed() {
+		return
+	}
+	crew, err := stread.Crew()
+	if err != nil || len(crew) == 0 {
+		return
+	}
+	agents := make([]string, 0, len(crew))
+	for name := range crew {
+		agents = append(agents, name)
+	}
+	sort.Strings(agents)
+	_, _ = crewid.Assign(agents)
 }
 
 func (m *Manager) create(fullSessionName string) error {

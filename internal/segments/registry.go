@@ -12,7 +12,10 @@ var Registry = map[string]Segment{
 	"load":  Load{},
 	"disk":  Disk{},
 	// shantytown segments (https://github.com/scbrown/shantytown) — empty without the st CLI
-	"anchor":  Anchor{},
+	"crewid":  CrewID{}, // who this pane is: mark, name, role, state
+	"task":    Task{},   // what they hold: item id + title
+	"stats":   Stats{},  // what they did: activity, files, tokens
+	"anchor":  Anchor{}, // just the item id (superseded by task)
 	"crew":    Crew{},
 	"events":  Events{},
 	"inbox":   Inbox{},
@@ -23,6 +26,6 @@ var Registry = map[string]Segment{
 func AllNames() []string {
 	return []string{
 		"session", "clock", "host", "cpu", "mem", "load", "disk",
-		"anchor", "crew", "events", "inbox", "harness",
+		"crewid", "task", "stats", "anchor", "crew", "events", "inbox", "harness",
 	}
 }

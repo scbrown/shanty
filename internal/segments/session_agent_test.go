@@ -19,8 +19,16 @@ func TestAgentNameFromSession(t *testing.T) {
 		t.Errorf("agentName() from shanty-sattler = %q, want %q", got, "sattler")
 	}
 
-	// A session with no shanty- prefix derives NO agent — the segment renders the
-	// same safe empty it already falls back to, rather than guessing.
+	// A fleet launched by shantytown names each session st-<agent>. Recognizing
+	// only shanty's own prefix is what made every fleet pane derive NO agent and
+	// blanked the whole per-agent bar on the deployment st was driving.
+	SetSession("st-villiers")
+	if got := agentName(); got != "villiers" {
+		t.Errorf("agentName() from st-villiers = %q, want %q", got, "villiers")
+	}
+
+	// A session with neither prefix derives NO agent — guessing would put another
+	// agent's plate on this bar.
 	SetSession("some-foreign-session")
 	if got := agentName(); got != "" {
 		t.Errorf("agentName() from a non-shanty session = %q, want empty", got)
