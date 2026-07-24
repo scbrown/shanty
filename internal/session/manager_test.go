@@ -38,3 +38,22 @@ func TestDisplayName(t *testing.T) {
 		}
 	}
 }
+
+// The bar needs BOTH halves of st's configuration in the tmux SERVER's environment,
+// and they are different directories: SHANTY_ROOT is where st finds who the crew ARE,
+// SHANTY_ST_CWD decides which tracker store it reads. Propagating only the second
+// yielded "no such agent" for agents that plainly exist.
+func TestSegmentEnvCarriesBothHalvesOfStsConfiguration(t *testing.T) {
+	for _, want := range []string{"SHANTY_ROOT", "SHANTY_ST_CWD", "SHANTY_ST_BIN"} {
+		found := false
+		for _, got := range segmentEnv {
+			if got == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("apply does not carry %q into the tmux server: %v", want, segmentEnv)
+		}
+	}
+}

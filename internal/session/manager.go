@@ -194,7 +194,12 @@ func (m *Manager) Apply() error {
 // symptom is a blank segment, which looks like "nothing to report". `apply` is the
 // command that knows both values and the target server, so it is the right place to
 // carry them across.
-var segmentEnv = []string{"SHANTY_ST_BIN", "SHANTY_ST_CWD"}
+// SHANTY_ROOT is here because st needs BOTH halves and they are different
+// directories: the root is where st finds WHO the crew are, and the working
+// directory decides which tracker store it reads. Propagating only the second
+// produced a bar that knew a session was `st-<agent>` and then could not confirm the
+// agent exists — "no such agent", on a fleet where they plainly do.
+var segmentEnv = []string{"SHANTY_ST_BIN", "SHANTY_ST_CWD", "SHANTY_ROOT"}
 
 // exportSegmentEnv copies the segment configuration this process was given into the
 // target server. Only variables actually set are copied — writing an empty value
