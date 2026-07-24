@@ -138,6 +138,12 @@ mail or mark an event delivered. The listing and draining forms are never used.
 | `SHANTY_ST_CWD` | The directory to run `st` from. `st` resolves its tracker by walking up from here, so this decides which store the bar reads. Set it when the tmux server's working directory is not the deployment's tracker root. |
 | `SHANTY_SEG_NOCACHE` | Disable the shared on-disk answer cache. |
 
+`shanty apply` copies `SHANTY_ST_BIN` and `SHANTY_ST_CWD` from your shell into the
+target tmux server's environment, because that is the environment the segments
+actually run in. `st` is also launched with its own directory prepended to `PATH`,
+so the tracker CLI installed alongside it resolves even when the server's `PATH`
+does not include it.
+
 ## Crew marks
 
 Each agent gets one emoji so a wall of panes is identifiable without reading:

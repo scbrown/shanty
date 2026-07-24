@@ -173,6 +173,7 @@ func Run(args ...string) (string, error) {
 	}
 	cmd := exec.Command(bin, args...)
 	cmd.Dir = dir
+	cmd.Env = childEnv(bin)
 	out, err := cmd.Output()
 	val := strings.TrimSpace(string(out))
 	if err != nil {
@@ -185,6 +186,38 @@ func Run(args ...string) (string, error) {
 	}
 	cacheSet(key, val)
 	return val, nil
+}
+
+// childEnv is our environment with the st binary's own directory prepended to
+// PATH.
+//
+// Finding `st` ourselves is not sufficient, because st is not self-contained: it
+// shells out to its tracker's CLI, which is installed alongside it. Under a tmux
+// server whose PATH lacks that directory, `st anchor` fails with
+//
+//	bd list failed: [Errno 2] No such file or directory: 'bd'
+//
+// while `st` itself ran perfectly — a segment that is loud about a fault the
+// operator cannot see the cause of. Prepending st's own directory makes st's
+// companions resolvable by the same reasoning that let us find st: they were
+// installed together. It PREPENDS rather than replaces, so a deliberately
+// configured PATH still wins for anything else.
+func childEnv(bin string) []string {
+	dir := filepath.Dir(bin)
+	if dir == "" || dir == "." {
+		return nil // inherit ours; nothing useful to add
+	}
+	env := os.Environ()
+	for i, kv := range env {
+		if name, val, ok := strings.Cut(kv, "="); ok && name == "PATH" {
+			if val == dir || strings.HasPrefix(val, dir+string(os.PathListSeparator)) {
+				return env // already leading; do not grow the variable every call
+			}
+			env[i] = "PATH=" + dir + string(os.PathListSeparator) + val
+			return env
+		}
+	}
+	return append(env, "PATH="+dir)
 }
 
 func firstLine(b []byte) string {

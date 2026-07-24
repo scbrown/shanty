@@ -44,6 +44,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   renders as a convincing blank.
 - The segment cache was process-local and therefore never hit — each `shanty seg`
   invocation is its own process. It is now shared on disk.
+- **`st` could not reach its own companions.** `st` shells out to its tracker's CLI,
+  installed alongside it; under a tmux server with a narrow `PATH` that failed with
+  `bd list failed: No such file or directory: 'bd'` even though `st` itself ran.
+  `st` is now launched with its own directory prepended to `PATH`.
+- **`shanty ls` reported "No active sessions" on a live fleet.** Sessions were
+  filtered to shanty's own `shanty-` prefix, so a dozen `st-<agent>` panes were
+  invisible — the session picker's version of the blank status bar, from the same
+  single-prefix assumption. The prefix list now lives in one place.
+- `shanty apply` copies `SHANTY_ST_BIN`/`SHANTY_ST_CWD` into the target tmux
+  server's environment. Setting them in a shell and applying used to leave the bar
+  unable to reach the tracker, with a blank segment as the only symptom.
 
 ### Changed
 

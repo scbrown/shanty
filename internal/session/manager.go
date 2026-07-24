@@ -43,9 +43,11 @@ func fullName(name string) string {
 	return sessionPrefix + name
 }
 
-// displayName strips the shanty- prefix for user-facing output.
+// displayName strips a recognized agent prefix for user-facing output. A name with
+// no known prefix is shown as it is.
 func displayName(name string) string {
-	return strings.TrimPrefix(name, sessionPrefix)
+	stripped, _ := stread.StripSessionPrefix(name)
+	return stripped
 }
 
 // Manager handles shanty tmux session lifecycle.
@@ -112,7 +114,11 @@ func (m *Manager) List() ([]string, error) {
 		if line == "" {
 			continue
 		}
-		if strings.HasPrefix(line, sessionPrefix) {
+		// Both shanty's own prefix and shantytown's `st-` count. Filtering to
+		// `shanty-` alone made `shanty ls` report "No active sessions" on a fleet of
+		// a dozen live agent panes — the picker's own version of the blank status
+		// bar, from the same single-prefix assumption.
+		if stread.IsAgentSession(line) {
 			sessions = append(sessions, displayName(line))
 		}
 	}

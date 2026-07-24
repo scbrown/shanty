@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/scbrown/shanty/internal/crewid"
+	"github.com/scbrown/shanty/internal/stread"
 )
 
 // Session renders WHO this pane belongs to as the bar's leftmost pill: the crew
@@ -32,13 +33,7 @@ func (s Session) Render() string {
 	if name == "" {
 		name = "shanty"
 	}
-	display := name
-	for _, p := range sessionPrefixes {
-		if strings.HasPrefix(display, p) {
-			display = strings.TrimPrefix(display, p)
-			break
-		}
-	}
+	display, _ := stread.StripSessionPrefix(name)
 	if mark := crewid.EmojiFor(display); mark != "" {
 		display = mark + " " + display
 	}

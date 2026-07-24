@@ -10,16 +10,6 @@ import (
 	"github.com/scbrown/shanty/internal/stread"
 )
 
-// sessionPrefixes are the session-name prefixes an agent identity can hide behind.
-//
-// "shanty-" is shanty's own convention. "st-" is shantytown's: a fleet launched by
-// st names each agent's session st-<agent>, and shanty is explicitly the bar over
-// those panes (st attach points SHANTY_TMUX_SOCKET at the fleet socket). Knowing
-// only shanty's own prefix meant every fleet session derived NO agent and every
-// per-agent segment rendered empty — indistinguishable from "you do not run
-// shantytown", on the very deployment shantytown was driving.
-var sessionPrefixes = []string{"shanty-", "st-"}
-
 // sessionName is the tmux session the segment is being drawn in, set by the seg
 // command from tmux's #{session_name}. It is the per-pane identity the SHARED
 // fleet bar needs: one tmux server has one $SHANTY_AGENT env, but many sessions,
@@ -47,12 +37,10 @@ func agentName() string {
 	if a := os.Getenv("SHANTY_AGENT"); a != "" {
 		return a
 	}
-	for _, p := range sessionPrefixes {
-		if strings.HasPrefix(sessionName, p) {
-			return strings.TrimPrefix(sessionName, p)
-		}
-	}
-	return ""
+	// Both shanty's own `shanty-` prefix and shantytown's `st-` are recognized —
+	// see stread.SessionPrefixes. Knowing only the former is what blanked every
+	// per-agent segment on the fleet st was driving.
+	return stread.AgentFromSession(sessionName)
 }
 
 // Dracula palette, named so the render sites read as intent.

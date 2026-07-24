@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -230,6 +231,53 @@ func TestRunUsesTheConfiguredWorkingDirectory(t *testing.T) {
 	got, _ := filepath.EvalSymlinks(out)
 	if got != want {
 		t.Errorf("st ran in %q, want %q", got, want)
+	}
+}
+
+func TestStGetsItsOwnDirectoryOnPath(t *testing.T) {
+	// st is not self-contained: it shells out to its tracker's CLI, installed
+	// alongside it. Under a tmux server whose PATH lacks that directory, `st
+	// anchor` failed with "No such file or directory: 'bd'" even though st itself
+	// ran fine. Prepending st's own directory is what makes its companions
+	// resolvable.
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "st")
+	// The stub reports whether a sibling tool installed next to it is reachable.
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\ncompanion\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	companion := filepath.Join(dir, "companion")
+	if err := os.WriteFile(companion, []byte("#!/bin/sh\necho reachable\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", "/usr/bin:/bin") // deliberately excludes dir
+	t.Setenv("SHANTY_ST_BIN", bin)
+	t.Setenv("SHANTY_SEG_NOCACHE", "1")
+	ResetBinForTest()
+	defer ResetBinForTest()
+
+	out, err := Run("anchor")
+	if err != nil {
+		t.Fatalf("st could not reach a tool installed beside it: %v", err)
+	}
+	if out != "reachable" {
+		t.Errorf("Run = %q, want %q", out, "reachable")
+	}
+}
+
+func TestChildEnvDoesNotGrowPathOnRepeatedCalls(t *testing.T) {
+	// The prepend has to be idempotent: a segment makes several st calls per render
+	// and a PATH that gains a copy of the same directory each time is a slow leak.
+	t.Setenv("PATH", "/opt/tools:/usr/bin")
+	first := childEnv("/opt/tools/st")
+	var got string
+	for _, kv := range first {
+		if name, val, ok := strings.Cut(kv, "="); ok && name == "PATH" {
+			got = val
+		}
+	}
+	if got != "/opt/tools:/usr/bin" {
+		t.Errorf("PATH = %q, want it left alone when the dir already leads", got)
 	}
 }
 
