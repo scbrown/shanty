@@ -278,3 +278,102 @@ func TestReadsAreNonMarking(t *testing.T) {
 		}
 	}
 }
+
+func TestAdministratorHoldingNothingIsNotAFault(t *testing.T) {
+	// The administrator role exists to stay free to coordinate and is never assigned
+	// implementation work, so its empty plate is the EXPECTED state. Warning about it
+	// produces a red that is known-false every time it is drawn, and a status surface
+	// carrying one permanent false red teaches its reader to discount every red on it.
+	fakeST(t, map[string]string{
+		"anchor moneypenny --short": "",
+		"crew": "  moneypenny  administrator  up  current  busy  st-moneypenny\n" +
+			"  bond        worker         up  current  idle  st-bond\n" +
+			"  q           worker         up  current  busy  st-q",
+	})
+	t.Setenv("SHANTY_AGENT", "moneypenny")
+
+	got := plain(Task{}.Render())
+	if strings.Contains(got, "⚠") {
+		t.Errorf("render %q warns about an administrator's empty plate", got)
+	}
+	if strings.Contains(got, "no item") {
+		t.Errorf("render %q reports an absence for a role that never holds one: %q", got, got)
+	}
+	// It must say something TRUE instead of nothing — the slot is not wasted.
+	if strings.TrimSpace(got) == "" {
+		t.Error("administrator render is blank; it should show dispatch state")
+	}
+	if !strings.Contains(got, "free") {
+		t.Errorf("render %q does not report the dispatch state (1 agent is idle)", got)
+	}
+}
+
+func TestAdministratorRuleIsKeyedOnRoleNotName(t *testing.T) {
+	// A future administrator must inherit the treatment, and the current one must not
+	// keep it if the role moves. Same agent NAME, different role, opposite rendering.
+	for _, tc := range []struct {
+		role      string
+		wantWarn  bool
+		situation string
+	}{
+		{"administrator", false, "coordinating role: empty plate is expected"},
+		{"worker", true, "worker with no item while busy: real signal, stay loud"},
+	} {
+		fakeST(t, map[string]string{
+			"anchor moneypenny --short": "",
+			"crew":                      "  moneypenny  " + tc.role + "  up  current  busy  st-moneypenny",
+		})
+		t.Setenv("SHANTY_AGENT", "moneypenny")
+		got := plain(Task{}.Render())
+		if warned := strings.Contains(got, "⚠"); warned != tc.wantWarn {
+			t.Errorf("role %q (%s): warned=%v, want %v — render was %q",
+				tc.role, tc.situation, warned, tc.wantWarn, got)
+		}
+	}
+}
+
+func TestAdministratorSummaryCountsIdleWithLiveWorkSeparately(t *testing.T) {
+	// An agent st calls idle whose background work is still running is NOT free, and
+	// counting it as free is the single number that most often makes a dispatch
+	// decision wrong.
+	fakeST(t, map[string]string{
+		"anchor moneypenny --short": "",
+		"crew": "  moneypenny  administrator  up  current  busy      st-moneypenny\n" +
+			"  bond        worker         up  current  idle      st-bond\n" +
+			"  q           worker         up  current  idle+1sh  st-q\n" +
+			"  r           lead           up  current  waiting   st-r",
+	})
+	t.Setenv("SHANTY_AGENT", "moneypenny")
+	got := plain(Task{}.Render())
+	if !strings.Contains(got, "1 free") {
+		t.Errorf("render %q: only bond is genuinely free", got)
+	}
+	if !strings.Contains(got, "1 idle+live") {
+		t.Errorf("render %q: q is idle with a live shell and must not count as free", got)
+	}
+	if !strings.Contains(got, "1 need eyes") {
+		t.Errorf("render %q: r is waiting and needs a human", got)
+	}
+}
+
+func TestCrewIDShowsWhyItThinksSo(t *testing.T) {
+	// The coordinator's ask: expose WHY the bar believes an agent is busy or idle, so
+	// the verdict can be weighed against a competing idle signal rather than just
+	// believed or ignored.
+	fakeST(t, map[string]string{"crew": "  villiers  worker  up  current  busy+2sh  st-villiers"})
+	got := plain(CrewID{}.Render())
+	if !strings.Contains(got, "2 shells live") {
+		t.Errorf("render %q does not explain the verdict", got)
+	}
+}
+
+func TestCrewIDDoesNotPaintIdleWithLiveWorkAsCalm(t *testing.T) {
+	fakeST(t, map[string]string{"crew": "  villiers  worker  up  current  idle+1sh  st-villiers"})
+	got := CrewID{}.Render()
+	if strings.Contains(got, colGreen) {
+		t.Errorf("idle-with-live-work rendered in the calm green of a free agent: %q", got)
+	}
+	if !strings.Contains(plain(got), "1 shell live") {
+		t.Errorf("render %q hides that work is still running", plain(got))
+	}
+}

@@ -93,6 +93,7 @@ With `st` present, everything else gets words:
 | An `st` call failed | `⚠ st?` |
 | `st stats` has no capture store | `Σ off` |
 | `st` reports the agent's settings are stale | `settings:STALE` beside the name |
+| The agent is an `administrator` holding nothing | `⚑ 2 free · 1 need eyes` (see below) |
 
 The third row is the one worth understanding. `st anchor <agent> --short` answers a
 lookup against a store that does not hold the item with EMPTY output and a zero
@@ -115,6 +116,41 @@ said at launch.
 `crew` hides only on `0/0`; an idle-but-present crew such as `0/9` still shows,
 because "no crew" and "everyone idle" are different facts. `events` and `inbox` hide
 on zero — a quiet inbox has nothing to say.
+
+### Why the bar thinks what it thinks
+
+`st` packs three facts into one work cell — the verdict, the number of background
+shells still running, and (when saturated) the context size:
+
+    busy   busy+1sh   idle+1sh   saturated·948k
+
+`crewid` decodes that into words: `busy (1 shell live)`, `saturated (948k ctx)`,
+`waiting (blocked on a question)`. Nothing is inferred; the evidence was already in
+`st`'s cell. It matters because a coordinator choosing whether to dispatch is weighing
+this bar against some other idle signal, and a verdict with its evidence attached can
+be trusted or argued with, where a bare word can only be believed or ignored.
+
+**`idle+1sh` is the case to know.** `st`'s own note on that suffix reads "idle AND
+carrying live work": an agent whose turn ended with a build, a test run, or a
+`gh run watch` still live is not finished. `idle` is exactly the word that gets it
+dispatched over, so the bar does not paint it the calm green a genuinely free agent
+gets, and the administrator's dispatch summary counts it apart from free.
+
+### The administrator's item slot
+
+An `administrator` never holds an implementation item — the role exists to stay free
+to coordinate. Warning about its empty plate would be a red that is known-false every
+time it is drawn, and one permanent false red on a status surface teaches its reader
+to discount every red on it. So for that role the slot shows the state the role
+actually acts on, counted from the same `st crew` read:
+
+    ⚑ 2 free · 1 need eyes · 1 idle+live
+    ⚑ crew fed                             (everyone has work, nothing stalled)
+    ⚑ ⚠ crew unreadable                    (we could not count — not a confident zero)
+
+This is keyed on the ROLE, never on an agent name, so a future administrator inherits
+it and the current one loses it if the role moves. For a `worker`, busy-with-no-item
+stays loud: there it is real signal.
 
 ### Agent identity
 

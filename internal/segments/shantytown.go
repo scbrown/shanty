@@ -90,7 +90,14 @@ func identity() (agent string, problem string) {
 // stateColor maps st's work verdict to how much it wants an eye. These are st's
 // own words (shantytown triage.py), matched, never recomputed.
 func stateColor(cell string) string {
-	switch stread.StateWord(cell) {
+	v := stread.ParseVerdict(cell)
+	// Idle-with-live-work is not the calm green that plain idle earns: st says the
+	// agent is free AND that work is still running in it, which is the combination a
+	// coordinator dispatches over.
+	if v.MisleadinglyIdle() {
+		return colOrange
+	}
+	switch v.Word {
 	case "waiting", "wedged":
 		return colRed
 	case "queued", "saturated":
@@ -154,7 +161,22 @@ func (CrewID) Render() string {
 		label += "·" + shortRole(e.Role)
 	}
 	out := withMark(mark, paint(colFG, label))
-	out += " " + paint(stateColor(e.State), e.State)
+
+	v := stread.ParseVerdict(e.State)
+	out += " " + paint(stateColor(e.State), v.Word)
+	// The evidence behind the verdict, in words. A coordinator deciding whether to
+	// dispatch is choosing between this bar and some other idle signal; a verdict
+	// with its evidence attached can be trusted or argued with, where a bare word
+	// can only be believed or ignored.
+	if why := v.Why(); why != "" {
+		colour := colDim
+		if v.MisleadinglyIdle() {
+			// st calls this agent idle AND says work is still running in it. That is
+			// the shape that gets dispatched over, so it does not get to look calm.
+			colour = colOrange
+		}
+		out += " " + paint(colour, "("+why+")")
+	}
 	if e.Currency == "STALE" {
 		// st reports this agent is running settings older than the file on disk.
 		// The pane looks healthy and its hooks are whatever the file said at
@@ -247,10 +269,77 @@ func (Task) Render() string {
 	if cerr != nil {
 		return paint(colDim, "⚓ ") + loud("no item, state unknown")
 	}
+
+	// An ADMINISTRATOR holding nothing is the expected state, not a fault. The role
+	// exists to stay free to coordinate and is never assigned implementation work, so
+	// warning about its empty plate produces a red that is known-false every time it
+	// is drawn — and a status surface that permanently shows one false red teaches
+	// its reader to discount every red on it. Keyed on the ROLE, never on a name, so
+	// whoever holds the role next inherits the same treatment.
+	if e.Role == roleAdministrator {
+		return dispatchSummary()
+	}
+
 	if stread.Busy(e.State) {
 		return paint(colDim, "⚓ ") + loud(stread.StateWord(e.State)+", no item")
 	}
 	return paint(colDim, "⚓ — nothing held")
+}
+
+// roleAdministrator is st's name for the coordinating role (shantytown tier.py:
+// VALID_ROLES). It is matched as a role, deliberately never as an agent name.
+const roleAdministrator = "administrator"
+
+// dispatchSummary is what the item slot shows for an administrator: the state that
+// role actually acts on, instead of an absence rendered as a fault.
+//
+// Every number is counted from the same `st crew` read the identity segment already
+// made — st's own verdicts, not a second opinion, and no extra process. "needs eyes"
+// is st's own attention vocabulary: blocked on a question, wedged, a stalled send, a
+// context wall. Those are the agents a coordinator must look at before anything else.
+//
+// A crew read that fails here says so rather than reporting a confident zero: "no
+// crew is free" and "I could not count the crew" are opposite instructions.
+func dispatchSummary() string {
+	crew, err := stread.Crew()
+	if err != nil || len(crew) == 0 {
+		return paint(colDim, "⚑ ") + loud("crew unreadable")
+	}
+	var free, attention, liveShells int
+	for _, e := range crew {
+		v := stread.ParseVerdict(e.State)
+		switch {
+		case v.Word == "idle" && !v.WorkStillRunning():
+			free++
+		case v.Word == "waiting", v.Word == "wedged", v.Word == "queued", v.Word == "saturated":
+			attention++
+		}
+		// Counted separately and NOT as free: an agent st calls idle whose background
+		// work is still running is not available, and this is the single number that
+		// most often makes a dispatch decision wrong.
+		if v.MisleadinglyIdle() {
+			liveShells++
+		}
+	}
+	var parts []string
+	if free > 0 {
+		parts = append(parts, fmt.Sprintf("%d free", free))
+	}
+	if attention > 0 {
+		parts = append(parts, fmt.Sprintf("%d need eyes", attention))
+	}
+	if liveShells > 0 {
+		parts = append(parts, fmt.Sprintf("%d idle+live", liveShells))
+	}
+	if len(parts) == 0 {
+		// Nobody free, nobody stuck: every agent has work and none of it is stalled.
+		return paint(colGreen, "⚑ crew fed")
+	}
+	colour := colGreen
+	if attention > 0 || liveShells > 0 {
+		colour = colOrange
+	}
+	return paint(colour, "⚑ "+strings.Join(parts, " · "))
 }
 
 // clip shortens a title to n cells, marking the cut. It counts runes, not bytes: a

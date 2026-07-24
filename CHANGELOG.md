@@ -15,6 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `task` segment — the held item's id *and* its title, so a pane says what the
   agent is working on rather than only which ticket number
 - `stats` segment — activity, files touched and token traffic from `st stats`
+- The verdict now carries its EVIDENCE: `busy (2 shells live)`,
+  `saturated (948k ctx)`, `waiting (blocked on a question)`. st packs those facts
+  into its work cell and shanty was rendering the raw notation; decoded, a
+  coordinator can weigh the bar against a competing idle signal instead of having to
+  believe or ignore a bare word.
+- `idle+1sh` — st's own notation for "idle AND carrying live work" — is no longer
+  painted the calm green of a free agent. An agent whose turn ended with a build or a
+  `gh run watch` still running is not available, and `idle` is exactly the word that
+  gets it dispatched over. The administrator's dispatch summary counts those
+  separately from free for the same reason.
 - Per-crew emoji marks, assigned on first sight and never reassigned, stored in
   `~/.config/shanty/agents.toml`; `shanty marks` lists them and `shanty apply`
   assigns the whole roster in one deterministic pass
@@ -23,6 +33,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The bar permanently reported the fleet coordinator as a defect.** An
+  `administrator` never holds an implementation item — the role exists to stay free
+  to coordinate — so the busy-with-no-item warning was known-false every time it was
+  drawn for them, and a status surface carrying one permanent false red teaches its
+  reader to discount every red on it. For that role the item slot now shows dispatch
+  state instead: `⚑ 2 free · 1 need eyes`, or `⚑ crew fed`. Keyed on the ROLE, never
+  on a name, so whoever holds it next inherits the same treatment. For a worker the
+  warning stays loud — there it is real signal.
 - **The whole status bar could render as a blank line.** tmux runs `#(...)` status
   commands from the tmux *server's* environment; a server started outside a login
   shell has no `~/.local/bin` on `PATH`, so every `#(shanty seg …)` failed to exec

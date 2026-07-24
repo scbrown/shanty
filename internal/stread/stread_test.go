@@ -341,3 +341,60 @@ func TestCacheKeyedByArguments(t *testing.T) {
 		t.Errorf("two different st calls returned the same cached answer %q", a)
 	}
 }
+
+func TestParseVerdictDecodesStsNotation(t *testing.T) {
+	// st packs three facts into one column. The decode must be exact, because the
+	// most consequential case is the least obvious one — see MisleadinglyIdle below.
+	for cell, want := range map[string]Verdict{
+		"busy":           {Word: "busy", Raw: "busy"},
+		"busy+1sh":       {Word: "busy", Shells: 1, Raw: "busy+1sh"},
+		"busy+2sh":       {Word: "busy", Shells: 2, Raw: "busy+2sh"},
+		"idle":           {Word: "idle", Raw: "idle"},
+		"idle+1sh":       {Word: "idle", Shells: 1, Raw: "idle+1sh"},
+		"saturated·948k": {Word: "saturated", ContextK: 948, Raw: "saturated·948k"},
+		"waiting":        {Word: "waiting", Raw: "waiting"},
+		"?":              {Word: "?", Raw: "?"},
+	} {
+		if got := ParseVerdict(cell); got != want {
+			t.Errorf("ParseVerdict(%q) = %+v, want %+v", cell, got, want)
+		}
+	}
+}
+
+func TestMisleadinglyIdleIsTheDispatchTrap(t *testing.T) {
+	// st's own comment on the +Nsh suffix: `idle+1sh` is "idle AND carrying live
+	// work". An agent whose turn ended with a build or a `gh run watch` still live is
+	// not finished, and "idle" is exactly the word that gets it dispatched over.
+	if !ParseVerdict("idle+1sh").MisleadinglyIdle() {
+		t.Error("idle+1sh must be flagged: st says free AND says work is running")
+	}
+	if ParseVerdict("idle").MisleadinglyIdle() {
+		t.Error("plain idle is genuinely free — flagging it would cry wolf")
+	}
+	if ParseVerdict("busy+1sh").MisleadinglyIdle() {
+		t.Error("busy+1sh is not misleading; it already reads as occupied")
+	}
+	// But live work is still worth knowing about on a busy agent.
+	if !ParseVerdict("busy+1sh").WorkStillRunning() {
+		t.Error("busy+1sh carries live work")
+	}
+}
+
+func TestWhyExplainsTheEvidence(t *testing.T) {
+	// The answer to "why does the bar think this?". A verdict with its evidence can be
+	// trusted or argued with; a bare word can only be believed or ignored.
+	for cell, want := range map[string]string{
+		"busy":           "",
+		"busy+1sh":       "1 shell live",
+		"idle+2sh":       "2 shells live",
+		"saturated·948k": "948k ctx",
+		"waiting":        "blocked on a question",
+		"queued":         "unsubmitted text in the box",
+		"wedged":         "pane dead or stuck",
+		"?":              "st could not tell",
+	} {
+		if got := ParseVerdict(cell).Why(); got != want {
+			t.Errorf("ParseVerdict(%q).Why() = %q, want %q", cell, got, want)
+		}
+	}
+}

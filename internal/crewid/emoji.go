@@ -34,9 +34,9 @@ import (
 // Chosen for silhouette, not theme: each one has to be tellable from every other
 // at a glance in a status bar, so they are creatures with distinct outlines rather
 // than a set of near-identical faces or objects. None of them collide with the
-// glyphs the bar already uses for meaning (⚓ plate, ⚙ crew, ⚠ attention,
-// ✉ inbox, ⏱ harness, Σ stats) — a mark that reads as a status would be worse
-// than no mark.
+// glyphs the bar already uses for meaning (⚓ plate, ⚑ dispatch, ⚙ crew,
+// ⚠ attention, ✉ inbox, ⏱ harness, Σ stats) — a mark that reads as a status would
+// be worse than no mark.
 var Palette = []string{
 	"🦊", "🦉", "🐙", "🦈", "🐝", "🦋", "🐢", "🐧",
 	"🦁", "🐺", "🦅", "🐗", "🦔", "🦎", "🐳", "🦩",

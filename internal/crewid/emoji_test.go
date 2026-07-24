@@ -170,7 +170,7 @@ func TestPaletteEntriesAreUnique(t *testing.T) {
 	}
 	// The bar already spends these glyphs on meaning; a mark that reads as a
 	// status would be worse than no mark.
-	for _, reserved := range []string{"⚓", "⚙", "⚠", "✉", "⏱", "Σ"} {
+	for _, reserved := range []string{"⚓", "⚙", "⚠", "✉", "⏱", "Σ", "⚑"} {
 		if seen[reserved] {
 			t.Errorf("palette reuses %q, which the bar uses to mean something", reserved)
 		}
