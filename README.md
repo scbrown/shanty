@@ -283,7 +283,7 @@ looks healthy:
 |-----------|-----------|
 | Agent holds an item | `⚓ ss-1 rework the cache` |
 | Agent is idle, plate empty | `⚓ — nothing held` |
-| `st` calls the agent busy but names no item | `⚓ ⚠ plate? (st says busy)` |
+| `st` calls the agent busy but names no item | `⚓ ⚠ busy, no item` |
 | No identity derivable | `⚠ no agent` |
 | The `st` call failed | `⚠ st?` |
 | No capture store behind `st stats` | `Σ off` |

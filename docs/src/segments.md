@@ -88,7 +88,7 @@ With `st` present, everything else gets words:
 |-----------|-----------|
 | Agent holds an item | `⚓ ss-1 rework the cache` |
 | Agent is idle, plate empty | `⚓ — nothing held` |
-| `st` calls the agent busy but names no item | `⚓ ⚠ plate? (st says busy)` |
+| `st` calls the agent busy but names no item | `⚓ ⚠ busy, no item` |
 | No identity derivable | `⚠ no agent` |
 | An `st` call failed | `⚠ st?` |
 | `st stats` has no capture store | `Σ off` |
@@ -98,8 +98,15 @@ The third row is the one worth understanding. `st anchor <agent> --short` answer
 lookup against a store that does not hold the item with EMPTY output and a zero
 exit — so a bar built naively on it renders blank, consistently and silently, and
 looks exactly like an idle agent. The `task` segment therefore cross-checks against
-`st`'s own busy/idle verdict: an agent `st` calls busy is not holding nothing, we
-simply cannot read what it holds.
+`st`'s own busy/idle verdict and reports the contradiction.
+
+It says "busy, no item" rather than naming a cause, because two different situations
+produce it and shanty cannot tell them apart: the tracker may be unreachable from
+where `st` ran, or the tracker may be fine and the agent really is working on
+something nobody put on a plate. Both want a human. Asserting a cause we have not
+established would be the same species of error as rendering blank — an unearned
+claim that reads as fact — so the segment states only what it knows and leaves the
+diagnosis to the person who can check.
 
 The last row is not an error but is easy to miss: an agent running settings older
 than the file on disk looks perfectly healthy while its hooks are whatever the file

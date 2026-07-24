@@ -41,7 +41,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Segments no longer collapse failure to an empty string. Empty is reserved for
   "no `st` installed"; anything else renders a visible `⚠`, including the
   empty-plate-for-a-busy-agent contradiction that a naive `anchor --short` read
-  renders as a convincing blank.
+  renders as a convincing blank. That state reads `busy, no item` and deliberately
+  names no cause: an unreachable tracker and genuinely untracked work both produce
+  it, and asserting a diagnosis we have not established is the same species of
+  error as rendering blank.
 - The segment cache was process-local and therefore never hit — each `shanty seg`
   invocation is its own process. It is now shared on disk.
 - **`st` could not reach its own companions.** `st` shells out to its tracker's CLI,

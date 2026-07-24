@@ -199,14 +199,25 @@ const TitleWidth = 34
 //
 //	holding an item  ⚓ ss-1234 rework the widget cache
 //	empty plate      ⚓ — nothing held
-//	unreadable       ⚓ ⚠ plate? (st says busy but names no item)
+//	no item, busy    ⚓ ⚠ busy, no item
 //
 // The third one is the whole reason this segment does not just print what st
 // returns. `st anchor <agent> --short` answers a lookup it cannot resolve with
 // EMPTY output and a zero exit, so a bar built naively on it renders blank —
 // consistently, silently, and looking exactly like an idle agent. Cross-checking
-// against st's own busy/idle verdict turns that into a visible contradiction: an
-// agent st calls busy is not holding nothing, we simply cannot read what it holds.
+// against st's own busy/idle verdict turns that into a visible contradiction.
+//
+// It says "busy, no item" and NOT "unreadable", because two different situations
+// produce it and shanty cannot tell them apart:
+//
+//   - the tracker is unreachable from where st ran, so the plate reads empty;
+//   - the tracker is fine and the agent really is working on something nobody
+//     put on a plate — untracked work.
+//
+// Both want a human. Naming a cause we have not established would be the same
+// species of error as rendering blank: an unearned claim that reads as fact. So the
+// segment states the two things it knows — st calls this agent busy, and no item is
+// named — and leaves the diagnosis to the person who can check.
 type Task struct{}
 
 func (Task) Name() string { return "task" }
@@ -234,10 +245,10 @@ func (Task) Render() string {
 	// warning, not an idle pane.
 	e, cerr := crewEntry(agent)
 	if cerr != nil {
-		return paint(colDim, "⚓ ") + loud("plate?")
+		return paint(colDim, "⚓ ") + loud("no item, state unknown")
 	}
 	if stread.Busy(e.State) {
-		return paint(colDim, "⚓ ") + loud("plate? (st says "+stread.StateWord(e.State)+")")
+		return paint(colDim, "⚓ ") + loud(stread.StateWord(e.State)+", no item")
 	}
 	return paint(colDim, "⚓ — nothing held")
 }
