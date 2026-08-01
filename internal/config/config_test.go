@@ -12,7 +12,10 @@ func TestRenderStatusBarUsesSegmentCalls(t *testing.T) {
 
 	// Status bar should use shanty seg calls, not hardcoded values
 	expected := []string{
-		"#(shanty seg session)",
+		// session is per-agent now, so it is passed #{session_name} like the
+		// other per-agent segments. Asking tmux for the name over a hardcoded
+		// socket is what made every pane's bar read "shanty".
+		"#(shanty seg session #{session_name})",
 		"#(shanty seg cpu)",
 		"#(shanty seg mem)",
 		"#(shanty seg host)",

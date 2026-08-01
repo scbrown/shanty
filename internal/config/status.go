@@ -65,6 +65,12 @@ func RenderStatusBar(theme Theme, cfg StatusBarConfig) string {
 // clock, …) are fleet- or host-wide and need no session.
 var perAgentSegments = map[string]bool{
 	"anchor": true, "events": true, "inbox": true, "harness": true,
+	// `session` renders WHICH pane this is, so on a shared bar it is per-agent
+	// in exactly the same way. It was omitted here and left querying tmux for
+	// its own name over a hardcoded socket — the wrong half of the same
+	// mechanism this map exists to express. tmux already knows the session it
+	// is drawing; passing it is strictly more robust than asking back.
+	"session": true,
 }
 
 // renderSegmentCalls builds tmux format strings that invoke shanty seg for each

@@ -68,8 +68,8 @@ func TestGenerateConfig(t *testing.T) {
 	}
 
 	// Verify status bar uses segment calls
-	if !strings.Contains(conf, "#(shanty seg session)") {
-		t.Error("expected session segment call")
+	if !strings.Contains(conf, "#(shanty seg session #{session_name})") {
+		t.Error("expected session segment call, passed the session name")
 	}
 	if !strings.Contains(conf, "#(shanty seg cpu)") {
 		t.Error("expected cpu segment call")
