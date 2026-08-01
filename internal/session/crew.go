@@ -1,10 +1,10 @@
 package session
 
 import (
-	"os/exec"
 	"sort"
-	"strings"
 	"sync"
+
+	"github.com/scbrown/shanty/internal/stread"
 )
 
 // CrewRow is one enriched line of the session picker: a session name joined with
@@ -16,107 +16,40 @@ type CrewRow struct {
 	Item     string // current item held (`st anchor <name> --short`), "" if none/unknown
 	State    string // st's work verdict cell (busy / idle / waiting / saturated·948k / ...)
 	Currency string // settings currency (current / STALE / unknown), "" if not reported
-	rank     int    // attention sort key: lower surfaces first
+	Role     string // st's role: worker / lead / administrator. FULL, not abbreviated —
+	// the bar shortens roles (shortRole) because it lives in a 30-column budget;
+	// this table does not, and "administrator" carries information "admin" drops.
+	rank int // attention sort key: lower surfaces first
 }
 
-// crewEntry is the slice of `st crew` the picker keeps per agent.
-type crewEntry struct {
-	state    string
-	currency string
-}
+// crewEntry is the slice of `st crew` the picker keeps per agent. The reading is
+// delegated to stread, which is shanty's ONE st reader: the picker and the status
+// bar must not drift into two parsers of the same table, and stread also owns
+// finding the binary and caching the answer.
+type crewEntry = stread.Entry
 
 // stCrewAvailable reports whether we can ask st for crew state at all.
-func stCrewAvailable() bool {
-	_, err := exec.LookPath("st")
-	return err == nil
-}
+func stCrewAvailable() bool { return stread.Installed() }
 
 // runST shells out to st and returns trimmed stdout, or "" on any error — the
-// same fail-quiet contract shanty's status-bar segments already use. A missing
-// binary, a non-zero exit, or an empty plate all collapse to "": the picker
-// shows less, never a crash.
+// fail-quiet contract the picker wants. A missing binary, a non-zero exit, or an
+// empty plate all collapse to "": the picker shows less, never a crash. (The
+// status bar deliberately does NOT do this; a blank bar segment is a lie. A picker
+// row with a dash is not, because the human is looking right at it.)
 func runST(args ...string) string {
-	out, err := exec.Command("st", args...).Output()
+	out, err := stread.Run(args...)
 	if err != nil {
 		return ""
 	}
-	return strings.TrimSpace(string(out))
+	return out
 }
 
-// stateRank orders st's work verdicts by how much they need a human's eyes. The
-// ones an operator must look at FIRST — blocked on a question, wedged, a stalled
-// send, a context wall — sort before the ones that are fine. These are st's
-// words (triage.py), matched, never recomputed.
-var stateRank = map[string]int{
-	"waiting":   0, // BLOCKED on a question in the pane — needs a person, will not time out
-	"wedged":    1, // dead / stuck
-	"queued":    2, // unsubmitted text in the box — a stalled dispatch, or a human mid-sentence
-	"saturated": 3, // over the context limit — looks free, is a wall
-	"?":         4, // st could not tell
-	"busy":      5, // mid-flight — working, leave it
-	"idle":      6, // free
-}
+// stateWord and rankOf are the picker's names for stread's verdict vocabulary.
+func stateWord(cell string) string { return stread.StateWord(cell) }
+func rankOf(cell string) int       { return stread.RankOf(cell) }
 
-// stateWord extracts the leading verdict word from a work cell, so "saturated·948k"
-// and "busy+1sh" map to "saturated"/"busy". Returns "" if the cell matches no
-// known verdict (then the row sorts as a plain, un-judged session).
-func stateWord(cell string) string {
-	if cell == "" {
-		return ""
-	}
-	if strings.HasPrefix(cell, "?") {
-		return "?"
-	}
-	// Only one verdict can prefix a given cell (the words are disjoint), so map
-	// iteration order does not affect the result.
-	for word := range stateRank {
-		if word != "?" && strings.HasPrefix(cell, word) {
-			return word
-		}
-	}
-	return ""
-}
-
-// rankOf maps a work cell to its attention rank; unknown/plain sessions sort
-// after every judged one but before nothing.
-func rankOf(cell string) int {
-	if r, ok := stateRank[stateWord(cell)]; ok {
-		return r
-	}
-	return 90
-}
-
-// parseCrew turns `st crew`'s table into name -> {state cell, currency}. It reads
-// position-tolerantly on purpose — this picker does not own st's column order and
-// must not break when it changes: the NAME is always the first field, the STATE
-// is the field whose leading word is a known verdict, and CURRENCY is whichever
-// field is one of st's three settings values. A line with no recognizable verdict
-// is dropped (that session still lists, just without enrichment).
-func parseCrew(out string) map[string]crewEntry {
-	res := map[string]crewEntry{}
-	for _, line := range strings.Split(out, "\n") {
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-		name := fields[0]
-		var stateCell, currency string
-		for _, f := range fields[1:] {
-			if stateCell == "" && stateWord(f) != "" {
-				stateCell = f
-			}
-			switch f {
-			case "current", "STALE", "unknown":
-				currency = f
-			}
-		}
-		if stateCell == "" {
-			continue
-		}
-		res[name] = crewEntry{state: stateCell, currency: currency}
-	}
-	return res
-}
+// parseCrew turns `st crew`'s table into name -> entry.
+func parseCrew(out string) map[string]crewEntry { return stread.ParseCrew(out) }
 
 // buildRows joins the session list with parsed crew state and a per-agent item
 // lookup, then sorts attention-first (then by name). Pure: `anchor` is injected
@@ -126,7 +59,7 @@ func buildRows(sessions []string, crew map[string]crewEntry, anchor func(name st
 	for i, name := range sessions {
 		row := CrewRow{Name: name, Item: anchor(name)}
 		if e, ok := crew[name]; ok {
-			row.State, row.Currency, row.rank = e.state, e.currency, rankOf(e.state)
+			row.State, row.Currency, row.Role, row.rank = e.State, e.Currency, e.Role, rankOf(e.State)
 		} else {
 			row.rank = 99 // a live session st does not know as crew — sort last
 		}

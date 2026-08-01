@@ -70,15 +70,4 @@ func GenerateConfig() (string, error) {
 	return confPath, nil
 }
 
-func configDir() (string, error) {
-	dir := os.Getenv("XDG_CONFIG_HOME")
-	if dir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		dir = filepath.Join(home, ".config")
-	}
-	dir = filepath.Join(dir, "shanty")
-	return dir, os.MkdirAll(dir, 0o755)
-}
+func configDir() (string, error) { return config.Dir() }

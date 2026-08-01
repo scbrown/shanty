@@ -10,16 +10,22 @@ func TestRenderStatusBarUsesSegmentCalls(t *testing.T) {
 	cfg := DefaultStatusBar()
 	result := RenderStatusBar(theme, cfg)
 
-	// Status bar should use shanty seg calls, not hardcoded values
+	// Status bar should use shanty seg calls, not hardcoded values. The binary is
+	// named by absolute path (see TestSegmentCallsDoNotDependOnPath), so assert the
+	// call shape rather than the bare name.
 	expected := []string{
-		// session is per-agent now, so it is passed #{session_name} like the
-		// other per-agent segments. Asking tmux for the name over a hardcoded
-		// socket is what made every pane's bar read "shanty".
-		"#(shanty seg session #{session_name})",
-		"#(shanty seg cpu)",
-		"#(shanty seg mem)",
-		"#(shanty seg host)",
-		"#(shanty seg clock)",
+		// The binary is an ABSOLUTE path now, so these assert the call shape
+		// without the leading "#(shanty".
+		//
+		// session is per-agent, so it is passed #{session_name} like the other
+		// per-agent segments — asking tmux for the name over a hardcoded socket
+		// is what made every pane's bar read "shanty" (03b8b49). Keep the
+		// #{session_name} here: it is the regression guard, not decoration.
+		" seg session #{session_name})",
+		" seg cpu)",
+		" seg mem)",
+		" seg host)",
+		" seg clock)",
 		"status-interval 5",
 	}
 	for _, e := range expected {
@@ -60,7 +66,11 @@ func TestDefaultStatusBarSegments(t *testing.T) {
 	// The ambient ones follow, and NONE of them may be dropped — adding an
 	// integration must not silently remove a feature someone already relies on,
 	// which is exactly what this test caught when `host` went missing.
-	expected := []string{"anchor", "events", "inbox", "crew", "harness", "cpu", "mem", "host", "clock"}
+	// `task` supersedes `anchor` here: it shows the same item id PLUS the title, so
+	// no information left the bar. `anchor` stays in the Registry for anyone whose
+	// bar names it explicitly.
+	expected := []string{"crewid", "task", "events", "inbox", "crew", "stats",
+		"harness", "cpu", "mem", "host", "clock"}
 	if len(cfg.Right) != len(expected) {
 		t.Errorf("expected Right=%v, got %v", expected, cfg.Right)
 	}
@@ -71,11 +81,13 @@ func TestDefaultStatusBarSegments(t *testing.T) {
 	}
 }
 
-// The shantytown segments must self-hide, or including them by default would
-// put five permanently-blank gaps in every non-shantytown user's status bar.
+// The shantytown segments must self-hide when no st binary exists, or including
+// them by default would put permanently-blank gaps in every non-shantytown user's
+// status bar. (With st present they must instead be LOUD about any failure — see
+// the segments package tests.)
 func TestShantytownSegmentsAreInTheDefaultBar(t *testing.T) {
 	cfg := DefaultStatusBar()
-	for _, want := range []string{"anchor", "events", "inbox", "crew", "harness"} {
+	for _, want := range []string{"crewid", "task", "stats", "events", "inbox", "crew", "harness"} {
 		found := false
 		for _, got := range cfg.Right {
 			if got == want {

@@ -4,7 +4,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
+
+	"github.com/scbrown/shanty/internal/crewid"
+	"github.com/scbrown/shanty/internal/stread"
 )
 
 const sessionPrefix = "shanty-"
@@ -39,9 +43,11 @@ func fullName(name string) string {
 	return sessionPrefix + name
 }
 
-// displayName strips the shanty- prefix for user-facing output.
+// displayName strips a recognized agent prefix for user-facing output. A name with
+// no known prefix is shown as it is.
 func displayName(name string) string {
-	return strings.TrimPrefix(name, sessionPrefix)
+	stripped, _ := stread.StripSessionPrefix(name)
+	return stripped
 }
 
 // Manager handles shanty tmux session lifecycle.
@@ -108,7 +114,11 @@ func (m *Manager) List() ([]string, error) {
 		if line == "" {
 			continue
 		}
-		if strings.HasPrefix(line, sessionPrefix) {
+		// Both shanty's own prefix and shantytown's `st-` count. Filtering to
+		// `shanty-` alone made `shanty ls` report "No active sessions" on a fleet of
+		// a dozen live agent panes — the picker's own version of the blank status
+		// bar, from the same single-prefix assumption.
+		if stread.IsAgentSession(line) {
 			sessions = append(sessions, displayName(line))
 		}
 	}
@@ -170,7 +180,70 @@ func (m *Manager) Apply() error {
 		return fmt.Errorf("sourcing shanty config into %q: %v: %s",
 			socketName, err, strings.TrimSpace(string(out)))
 	}
+	m.exportSegmentEnv()
+	assignCrewMarks()
 	return nil
+}
+
+// segmentEnv are the variables the status segments read which must exist in the
+// tmux SERVER's environment, not just the operator's shell.
+//
+// This is the trap they exist to close. tmux runs `#(...)` status commands from the
+// server's environment, so an operator who exports SHANTY_ST_CWD in their shell and
+// runs `shanty apply` gets a bar that still cannot find the tracker — and the
+// symptom is a blank segment, which looks like "nothing to report". `apply` is the
+// command that knows both values and the target server, so it is the right place to
+// carry them across.
+// SHANTY_ROOT is here because st needs BOTH halves and they are different
+// directories: the root is where st finds WHO the crew are, and the working
+// directory decides which tracker store it reads. Propagating only the second
+// produced a bar that knew a session was `st-<agent>` and then could not confirm the
+// agent exists — "no such agent", on a fleet where they plainly do.
+var segmentEnv = []string{"SHANTY_ST_BIN", "SHANTY_ST_CWD", "SHANTY_ROOT"}
+
+// exportSegmentEnv copies the segment configuration this process was given into the
+// target server. Only variables actually set are copied — writing an empty value
+// would override a server that was already configured correctly.
+//
+// Failure is silent: the theming apply came for has already succeeded, and a server
+// that refuses an environment write still renders a bar (a loud one, saying it
+// cannot reach the tracker — which is the honest outcome).
+func (m *Manager) exportSegmentEnv() {
+	for _, key := range segmentEnv {
+		val := os.Getenv(key)
+		if val == "" {
+			continue
+		}
+		_ = exec.Command(m.tmuxBin, "-L", socketName,
+			"set-environment", "-g", key, val).Run()
+	}
+}
+
+// assignCrewMarks gives every crew member st knows about its display mark, here
+// rather than lazily at render time.
+//
+// Doing it in one pass over the WHOLE sorted roster is what makes the assignment
+// deterministic from the roster rather than from the order panes happened to
+// redraw in. Lazy assignment in the segment remains as a safety net for an agent
+// created after this ran.
+//
+// Failure is silent on purpose: marks are cosmetic, and `apply`'s job — theming
+// the server — has already succeeded by this point. Refusing the whole apply
+// because an emoji file could not be written would be a worse trade.
+func assignCrewMarks() {
+	if !stread.Installed() {
+		return
+	}
+	crew, err := stread.Crew()
+	if err != nil || len(crew) == 0 {
+		return
+	}
+	agents := make([]string, 0, len(crew))
+	for name := range crew {
+		agents = append(agents, name)
+	}
+	sort.Strings(agents)
+	_, _ = crewid.Assign(agents)
 }
 
 func (m *Manager) create(fullSessionName string) error {

@@ -67,21 +67,29 @@ func TestGenerateConfig(t *testing.T) {
 		t.Error("expected inactive border color #6272a4")
 	}
 
-	// Verify status bar uses segment calls
-	if !strings.Contains(conf, "#(shanty seg session #{session_name})") {
-		t.Error("expected session segment call, passed the session name")
+	// Verify status bar uses segment calls. The binary in the call is an ABSOLUTE
+	// path, not the bare name — tmux runs status commands from the server's
+	// environment, whose PATH may not include shanty at all, and a bar that cannot
+	// exec renders empty rather than failing. So assert the call shape, and assert
+	// separately that it is absolute.
+	for _, seg := range []string{"session", "cpu", "mem", "host", "clock"} {
+		if !strings.Contains(conf, " seg "+seg) {
+			t.Errorf("expected %s segment call, got:\n%s", seg, conf)
+		}
 	}
-	if !strings.Contains(conf, "#(shanty seg cpu)") {
-		t.Error("expected cpu segment call")
+	// KEPT FROM 03b8b49, and deliberately separate from the loop above: the
+	// session segment must be PASSED #{session_name}. Without it the segment asks
+	// tmux for the name itself, which fails on a fleet socket and rendered the
+	// literal brand "shanty" on every agent's bar. The loop only proves the call
+	// exists; this proves it is fed.
+	if !strings.Contains(conf, " seg session #{session_name})") {
+		t.Error("expected session segment call to be passed #{session_name}")
 	}
-	if !strings.Contains(conf, "#(shanty seg mem)") {
-		t.Error("expected mem segment call")
+	if strings.Contains(conf, "#(shanty seg ") {
+		t.Error("segment calls must not rely on PATH: want an absolute shanty path")
 	}
-	if !strings.Contains(conf, "#(shanty seg host)") {
-		t.Error("expected host segment call")
-	}
-	if !strings.Contains(conf, "#(shanty seg clock)") {
-		t.Error("expected clock segment call")
+	if !strings.Contains(conf, "#(/") {
+		t.Error("expected segment calls to invoke an absolute path")
 	}
 	if !strings.Contains(conf, "status-interval 5") {
 		t.Error("expected status-interval 5")

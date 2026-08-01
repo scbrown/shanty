@@ -16,14 +16,24 @@ shanty seg list
 
 ## Default layout
 
-- **Left:** session name
-- **Right:** cpu, mem, host, clock
+- **Left:** the agent's mark and name
+- **Right:** crewid, task, events, inbox, crew, stats, harness, cpu, mem, host, clock
+
+The right-hand budget is 200 cells. tmux truncates `status-right` silently, so a
+budget sized for count-only segments would hide the identity, title and stats
+fields without saying so.
 
 ## System segments
 
 ### session
 
-Displays the current tmux session name with Dracula purple styling.
+The leftmost pill: who this pane belongs to — the agent's mark and name, derived
+from the session name tmux passes in.
+
+It takes the session name as an argument rather than asking tmux for it. Querying
+cannot work when shanty is pointed at a foreign socket (`SHANTY_TMUX_SOCKET`): the
+query fails, and every pane then falls back to the same placeholder. A bar that
+labels twelve different agents identically is worse than one with no label.
 
 ### clock
 
@@ -51,36 +61,162 @@ Root partition (`/`) usage as a percentage, color-coded.
 
 ## shantytown segments
 
-Five further segments surface state from [shantytown](https://github.com/scbrown/shantytown),
-a multi-agent workspace manager. They shell out to shantytown's `st` CLI, so they
-require `st` on your `PATH` and render an empty string without it — they are inert
-if you don't use shantytown.
+Eight further segments surface state from [shantytown](https://github.com/scbrown/shantytown),
+a multi-agent workspace manager. They shell out to shantytown's `st` CLI.
 
 | Segment | Description | Example |
 |---------|-------------|---------|
-| `anchor` | Current plate item | `⚓ st-1` |
+| `crewid` | Who this pane is: mark, name, role, state | `🦊 bond·wkr busy` |
+| `task` | The item held, with its title | `⚓ ss-1 rework the cache` |
+| `stats` | Activity, files touched, token traffic | `Σ 412⚡ 17f 222ktok` |
 | `crew` | Busy / total workers | `⚙ 3/9` |
 | `events` | Undelivered stop events for you | `⚠ 2` |
 | `inbox` | Unread messages | `✉ 1` |
 | `harness` | Agent runtime backing you | `⏱ claude` |
+| `anchor` | The held item's id alone (superseded by `task`) | `⚓ ss-1` |
 
-Each hides itself when there is nothing to report — an empty plate, no judgeable
-crew, zero pending events, no unread mail — so the bar stays quiet until something
-wants your attention. `crew` hides only on `0/0`; an idle-but-present crew such as
-`0/9` still shows, because "no crew" and "everyone idle" are different facts.
+## Failure is visible
+
+A status segment that goes blank when it breaks reads as "nothing to report", so it
+gets believed. These segments render an empty string in exactly ONE case: no `st`
+binary exists anywhere, meaning you do not run shantytown and must not be warned
+about a tool you never installed.
+
+With `st` present, everything else gets words:
+
+| Situation | Rendering |
+|-----------|-----------|
+| Agent holds an item | `⚓ ss-1 rework the cache` |
+| Agent is idle, plate empty | `⚓ — nothing held` |
+| `st` calls the agent busy but names no item | `⚓ ⚠ busy, no item` |
+| No identity derivable | `⚠ no agent` |
+| An `st` call failed | `⚠ st?` |
+| `st stats` has no capture store | `Σ off` |
+| `st` reports the agent's settings are stale | `settings:STALE` beside the name |
+| The agent is an `administrator` holding nothing | `⚑ 2 free · 1 need eyes` (see below) |
+
+The third row is the one worth understanding. `st anchor <agent> --short` answers a
+lookup against a store that does not hold the item with EMPTY output and a zero
+exit — so a bar built naively on it renders blank, consistently and silently, and
+looks exactly like an idle agent. The `task` segment therefore cross-checks against
+`st`'s own busy/idle verdict and reports the contradiction.
+
+It says "busy, no item" rather than naming a cause, because two different situations
+produce it and shanty cannot tell them apart: the tracker may be unreachable from
+where `st` ran, or the tracker may be fine and the agent really is working on
+something nobody put on a plate. Both want a human. Asserting a cause we have not
+established would be the same species of error as rendering blank — an unearned
+claim that reads as fact — so the segment states only what it knows and leaves the
+diagnosis to the person who can check.
+
+The last row is not an error but is easy to miss: an agent running settings older
+than the file on disk looks perfectly healthy while its hooks are whatever the file
+said at launch.
+
+`crew` hides only on `0/0`; an idle-but-present crew such as `0/9` still shows,
+because "no crew" and "everyone idle" are different facts. `events` and `inbox` hide
+on zero — a quiet inbox has nothing to say.
+
+### Why the bar thinks what it thinks
+
+`st` packs three facts into one work cell — the verdict, the number of background
+shells still running, and (when saturated) the context size:
+
+    busy   busy+1sh   idle+1sh   saturated·948k
+
+`crewid` decodes that into words: `busy (1 shell live)`, `saturated (948k ctx)`,
+`waiting (blocked on a question)`. Nothing is inferred; the evidence was already in
+`st`'s cell. It matters because a coordinator choosing whether to dispatch is weighing
+this bar against some other idle signal, and a verdict with its evidence attached can
+be trusted or argued with, where a bare word can only be believed or ignored.
+
+**`idle+1sh` is the case to know.** `st`'s own note on that suffix reads "idle AND
+carrying live work": an agent whose turn ended with a build, a test run, or a
+`gh run watch` still live is not finished. `idle` is exactly the word that gets it
+dispatched over, so the bar does not paint it the calm green a genuinely free agent
+gets, and the administrator's dispatch summary counts it apart from free.
+
+### The administrator's item slot
+
+An `administrator` never holds an implementation item — the role exists to stay free
+to coordinate. Warning about its empty plate would be a red that is known-false every
+time it is drawn, and one permanent false red on a status surface teaches its reader
+to discount every red on it. So for that role the slot shows the state the role
+actually acts on, counted from the same `st crew` read:
+
+    ⚑ 2 free · 1 need eyes · 1 idle+live
+    ⚑ crew fed                             (everyone has work, nothing stalled)
+    ⚑ ⚠ crew unreadable                    (we could not count — not a confident zero)
+
+This is keyed on the ROLE, never on an agent name, so a future administrator inherits
+it and the current one loses it if the role moves. For a `worker`, busy-with-no-item
+stays loud: there it is real signal.
 
 ### Agent identity
 
-Every segment except `crew` is per-agent, and resolves which agent you are from
-`$SHANTY_AGENT` — the same variable `st` itself uses. If it is unset these segments
-render empty rather than guess, so a mis-set environment shows you nothing instead
-of showing you somebody else's plate.
+Every segment except `crew` is per-agent. Identity comes from `$SHANTY_AGENT` — the
+same variable `st` itself uses — and otherwise from the session name, stripping
+either `shanty-` or shantytown's own `st-` prefix.
 
-Results are cached for 30 seconds, so a 5-second status interval does not mean an
-`st` invocation every 5 seconds. `inbox --count` and `anchor --events` are pure
-reads — polling them from the status bar never marks a message read or an event
-delivered.
+The session-name path is the normal one on a fleet: tmux runs status commands from
+the tmux **server's** environment, not the pane's, so `$SHANTY_AGENT` exported in a
+pane is not visible to the bar. That is why the generated config passes
+`#{session_name}` to every per-agent segment — one shared `status-right` over many
+sessions, each rendering its own agent.
+
+With no identity resolvable at all, the segments say `⚠ no agent` rather than guess.
+Guessing would put another agent's plate on this bar.
+
+### Non-marking reads
+
+The bar polls `inbox --count` and `anchor --events`, which shantytown documents as
+reads that mark nothing. Polling them from a status bar can never consume unread
+mail or mark an event delivered. The listing and draining forms are never used.
+
+### Environment
+
+| Variable | Effect |
+|----------|--------|
+| `SHANTY_ST_BIN` | The `st` binary to use. Default: `PATH`, then `~/.local/bin`, `/usr/local/bin`, `/opt/homebrew/bin`, `/usr/bin`. |
+| `SHANTY_ST_CWD` | The directory to run `st` from. `st` resolves its tracker by walking up from here, so this decides which store the bar reads. Set it when the tmux server's working directory is not the deployment's tracker root. |
+| `SHANTY_SEG_NOCACHE` | Disable the shared on-disk answer cache. |
+
+`shanty apply` copies `SHANTY_ST_BIN` and `SHANTY_ST_CWD` from your shell into the
+target tmux server's environment, because that is the environment the segments
+actually run in. `st` is also launched with its own directory prepended to `PATH`,
+so the tracker CLI installed alongside it resolves even when the server's `PATH`
+does not include it.
+
+## Crew marks
+
+Each agent gets one emoji so a wall of panes is identifiable without reading:
+
+```bash
+shanty marks
+```
+
+Marks are assigned on first sight and **never reassigned**. That is why they are
+stored, in `~/.config/shanty/agents.toml`, rather than derived from a hash of the
+name: a hash is stable per name, but its collision handling is not stable across
+roster changes, so adding one crew member would silently re-badge others and destroy
+the recognition the mark exists to provide.
+
+The registry is plain TOML — edit a line to choose your own mark, and assignment will
+not overwrite it. Keep them distinct, or two panes will look like the same agent.
+`shanty apply` assigns the whole roster in one deterministic pass over the sorted
+agent list; a segment meeting an unbadged agent assigns lazily as a safety net.
+
+The palette avoids the glyphs the bar already spends on meaning (⚓ ⚙ ⚠ ✉ ⏱ Σ): a
+mark that reads as a status would be worse than no mark. It is finite, and a roster
+that outgrows it gets no mark rather than a duplicate one.
 
 ## Caching
 
-Segments that call external commands cache their results for 30 seconds to minimize overhead. System segments that read from `/proc` are not cached since those reads are fast.
+Every `#(shanty seg …)` is its own short-lived process, so a process-local cache
+would never be hit — each render paid full price for every segment. Answers from
+external commands are therefore cached **on disk**, shared across every segment
+process, keyed by the binary, its working directory and its arguments. Only
+successful answers are cached: pinning a failure for the whole TTL would make the
+loud states above lag reality.
+
+System segments that read `/proc` are not cached; those reads are fast.

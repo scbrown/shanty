@@ -66,6 +66,9 @@ cpu
 mem
 load
 disk
+crewid
+task
+stats
 anchor
 crew
 events
@@ -83,7 +86,7 @@ $ shanty seg disk
 ```
 
 Segments print tmux format strings, so the status bar colors itself:
-green under 50%, orange from 50–79%, red at 80% and above. (The last five in that
+green under 50%, orange from 50–79%, red at 80% and above. (The last eight in that
 list are [shantytown](https://github.com/scbrown/shantytown) segments — see
 [below](#shantytown-segments).)
 
@@ -143,13 +146,23 @@ Gruvbox — all one small file.
 
 🚦 **Agent-Fleet Segments** — Optional segments for
 [shantytown](https://github.com/scbrown/shantytown), the multi-agent workspace manager:
-your current plate item, how many workers are busy, stop events waiting on you,
-unread messages, and which harness you're running on. They need shantytown's `st`
-CLI on your `PATH` and render empty without it — and they stay hidden until they
-have something to say.
+who this pane belongs to and what state they are in, the item they hold and its
+title, what they have actually been doing, how many workers are busy, stop events
+waiting on you, unread messages, and which harness you're running on.
 
-🐢 **Cheap by Default** — Segments that shell out to external tools share a 30-second
-cache, so a 5-second status interval never turns into a fork bomb.
+🐾 **A Mark Per Crew Member** — Each agent gets one emoji, assigned on first sight
+and never reassigned, so a wall of a dozen panes is identifiable without reading a
+word. `shanty marks` shows the roster; the registry is a TOML file you can edit.
+
+🔊 **Broken Never Looks Fine** — A status segment that blanks when it breaks reads
+as "nothing to report", so it gets believed. These render empty only when the `st`
+CLI is absent entirely. With it present, anything they cannot answer — an
+unresolvable identity, a failing call, a plate that will not name an item for an
+agent st calls busy — renders a visible ⚠ instead.
+
+🐢 **Cheap by Default** — Every `#(shanty seg …)` is its own process, so segments
+that shell out share an on-disk answer cache and a 5-second status interval never
+turns into a fork bomb.
 
 ## Quick Start
 
@@ -245,25 +258,62 @@ Color coding: green (<50%), orange (50–79%), red (80%+).
 
 ### shantytown segments
 
-Five further segments surface state from
+Eight further segments surface state from
 [shantytown](https://github.com/scbrown/shantytown), a multi-agent workspace manager.
 They shell out to shantytown's `st` CLI.
 
 | Segment | Description | Example |
 |---------|-------------|---------|
-| `anchor` | Current plate item | `⚓ st-1` |
+| `crewid` | Who this pane is: mark, name, role, state | `🦊 bond·wkr busy` |
+| `task` | The item held, with its title | `⚓ ss-1 rework the cache` |
+| `stats` | Activity, files touched, token traffic | `Σ 412⚡ 17f 222ktok` |
 | `crew` | Busy / total workers | `⚙ 3/9` |
 | `events` | Undelivered stop events for you | `⚠ 2` |
 | `inbox` | Unread messages | `✉ 1` |
 | `harness` | Agent runtime backing you | `⏱ claude` |
+| `anchor` | The held item's id alone (superseded by `task`) | `⚓ ss-1` |
 
-**These five require the `st` CLI on your `PATH`** and render as an empty string
-without it — so they cost nothing, and show nothing, if you don't use shantytown.
-Each also hides itself when the answer is nothing — empty plate, no judgeable crew,
-zero events, no unread mail — so the bar lights up only when something wants you.
-Every one except `crew` is per-agent and takes its identity from `$SHANTY_AGENT`;
-with that unset they render empty rather than guess. Their results are cached for
-30 seconds.
+**These require the `st` CLI** and render as an empty string when no `st` binary
+exists at all — so they cost nothing, and show nothing, if you don't use
+shantytown. That is the ONLY case in which they go quiet. When `st` is present they
+are loud about anything they cannot answer, because a bar that blanks on failure
+looks healthy:
+
+| Situation | Rendering |
+|-----------|-----------|
+| Agent holds an item | `⚓ ss-1 rework the cache` |
+| Agent is idle, plate empty | `⚓ — nothing held` |
+| `st` calls the agent busy but names no item | `⚓ ⚠ busy, no item` |
+| No identity derivable | `⚠ no agent` |
+| The `st` call failed | `⚠ st?` |
+| No capture store behind `st stats` | `Σ off` |
+
+Every segment except `crew` is per-agent. Identity comes from `$SHANTY_AGENT`, and
+otherwise from the session name (`shanty-<agent>` or shantytown's `st-<agent>`) —
+which is what the bar normally uses, because tmux runs status commands from the
+tmux **server's** environment, not the pane's. Reads are non-marking: the bar polls
+`inbox --count` and `anchor --events`, which shantytown documents as reads that
+consume nothing.
+
+Three environment variables tune the integration:
+
+| Variable | Effect |
+|----------|--------|
+| `SHANTY_ST_BIN` | The `st` binary to use. Default: `PATH`, then `~/.local/bin`, `/usr/local/bin`, `/opt/homebrew/bin`, `/usr/bin`. |
+| `SHANTY_ST_CWD` | The directory to run `st` from. `st` resolves its tracker by walking up from here, so this decides which store the bar reads. |
+| `SHANTY_SEG_NOCACHE` | Disable the shared on-disk answer cache. |
+
+### Crew marks
+
+```bash
+shanty marks       # who is badged with what
+```
+
+Marks are assigned on first sight and never reassigned — a mark that moves when the
+roster changes destroys the recognition it exists to provide, which is why the
+assignment is stored in `~/.config/shanty/agents.toml` rather than derived from a
+hash. Edit a line to choose your own; assignment will not overwrite it. `shanty
+apply` assigns marks for the whole roster in one deterministic pass.
 
 ```bash
 shanty seg list    # show every available segment
@@ -307,17 +357,22 @@ All eight fields are required and must be `#rrggbb` hex.
 ```text
 cmd/shanty/         Entry point (main.go)
 internal/
-  cmd/              Cobra CLI commands (root, ls, attach, seg)
+  cmd/              Cobra CLI commands (root, ls, attach, seg, apply, marks)
   config/           Theme loading, keybindings, status bar layout
   session/          tmux session management and config generation
   segments/         Pluggable status bar segment implementations
+  stread/           The one reader for shantytown's st CLI (locate, run, cache, parse)
+  crewid/           Per-agent emoji marks: assign once, never reassign
 themes/             Theme definitions (TOML)
 ```
 
 Running `shanty` generates a tmux config at `~/.config/shanty/tmux.conf` — theme,
 keybindings, and status bar — then starts or attaches to a session on the dedicated
-`shanty` socket. Status bar entries are `#(shanty seg <name>)` calls back into the
-same binary, which keeps segment logic in Go while tmux owns the refresh lifecycle.
+`shanty` socket. Status bar entries are `#(<abs-path-to-shanty> seg <name>)` calls
+back into the same binary, which keeps segment logic in Go while tmux owns the
+refresh lifecycle. The path is absolute deliberately: tmux runs status commands from
+the server's environment, whose `PATH` may not include shanty, and a bar that cannot
+exec its own segments renders as a blank line rather than an error.
 
 ## Dependencies
 
