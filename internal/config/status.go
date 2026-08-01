@@ -76,13 +76,17 @@ func RenderStatusBar(theme Theme, cfg StatusBarConfig) string {
 // the fleet runs one status-right over many sessions. The others (crew, cpu,
 // clock, …) are fleet- or host-wide and need no session.
 var perAgentSegments = map[string]bool{
-	"session": true, "crewid": true, "task": true, "stats": true,
+	"crewid": true, "task": true, "stats": true,
 	"anchor": true, "events": true, "inbox": true, "harness": true,
 	// `session` renders WHICH pane this is, so on a shared bar it is per-agent
 	// in exactly the same way. It was omitted here and left querying tmux for
 	// its own name over a hardcoded socket — the wrong half of the same
 	// mechanism this map exists to express. tmux already knows the session it
 	// is drawing; passing it is strictly more robust than asking back.
+	//
+	// This branch and main added this key INDEPENDENTLY, and git auto-merged
+	// both copies into a duplicate that only the compiler caught — status.go
+	// reported no conflict. Keep exactly one entry.
 	"session": true,
 }
 

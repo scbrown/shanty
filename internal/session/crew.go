@@ -16,7 +16,10 @@ type CrewRow struct {
 	Item     string // current item held (`st anchor <name> --short`), "" if none/unknown
 	State    string // st's work verdict cell (busy / idle / waiting / saturated·948k / ...)
 	Currency string // settings currency (current / STALE / unknown), "" if not reported
-	rank     int    // attention sort key: lower surfaces first
+	Role     string // st's role: worker / lead / administrator. FULL, not abbreviated —
+	// the bar shortens roles (shortRole) because it lives in a 30-column budget;
+	// this table does not, and "administrator" carries information "admin" drops.
+	rank int // attention sort key: lower surfaces first
 }
 
 // crewEntry is the slice of `st crew` the picker keeps per agent. The reading is
@@ -56,7 +59,7 @@ func buildRows(sessions []string, crew map[string]crewEntry, anchor func(name st
 	for i, name := range sessions {
 		row := CrewRow{Name: name, Item: anchor(name)}
 		if e, ok := crew[name]; ok {
-			row.State, row.Currency, row.rank = e.State, e.Currency, rankOf(e.State)
+			row.State, row.Currency, row.Role, row.rank = e.State, e.Currency, e.Role, rankOf(e.State)
 		} else {
 			row.rank = 99 // a live session st does not know as crew — sort last
 		}
