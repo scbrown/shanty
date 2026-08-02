@@ -28,6 +28,42 @@ Press **ctrl-a** first, then the key:
 | **Right** | Select pane to the right |
 | **Up** | Select pane above |
 | **Down** | Select pane below |
+| **a** / **ctrl-a** | Last window |
+| **s** | Session switcher (see below) |
+
+## Session switcher (ctrl-a s)
+
+`ctrl-a s` opens a fuzzy session switcher in a popup instead of tmux's stock
+`choose-tree`:
+
+- **Type to filter.** The first keystroke narrows the list — no mode to enter
+  first. Matching is fuzzy, so `dta` finds `delta-agent`.
+- **Most recently used first.** The session you last switched *away from* is the
+  top row, under the cursor, so **ctrl-a s Enter** toggles back to it. Below that,
+  sessions are ordered by when you were last in them; sessions no client has ever
+  attached to sort last, by name.
+- **The current session is not listed** — switching to where you already are is a
+  no-op, and it would occupy the row the cursor starts on.
+- **Esc** cancels without switching.
+
+Ordering uses tmux's `session_last_attached`, i.e. when you were last *in* a
+session. This is deliberately not `choose-tree -O time`, which tmux documents as
+sorting by *activity* — on a busy server that ranks whichever session most
+recently printed output, which is rarely the one you want.
+
+The picker is `shanty pick`. Run it by hand with `--list` to see the ordering
+without switching:
+
+```
+shanty pick --list
+```
+
+### Requirements
+
+The switcher uses [fzf](https://github.com/junegunn/fzf) for matching. If fzf is
+not installed, `ctrl-a s` falls back to tmux's standard `choose-tree -Zs`, so the
+key always does something. The check happens when you press the key, so
+installing fzf takes effect immediately — no need to regenerate the config.
 
 ## Standard tmux keys
 

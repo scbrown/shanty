@@ -237,8 +237,25 @@ The prefix is **ctrl-a**:
 | **ctrl-a -** | Split horizontally |
 | **ctrl-a** *arrow* | Move between panes |
 | **ctrl-a a** / **ctrl-a ctrl-a** | Last window |
+| **ctrl-a s** | Fuzzy session switcher |
 
 All standard tmux bindings still work under `ctrl-a`.
+
+### Session switcher
+
+`ctrl-a s` opens a fuzzy switcher in a popup rather than tmux's `choose-tree`.
+Type to filter as soon as it opens, and the session you last switched *away
+from* sits at the top under the cursor — so **ctrl-a s Enter** toggles back to
+it. Below that, sessions are ordered by when you were last in them. The session
+you are currently in is not offered.
+
+Ordering comes from tmux's `session_last_attached` — when you were last *in* a
+session — not `choose-tree -O time`, which sorts by *activity* and so ranks
+whichever session most recently printed output.
+
+Uses [fzf](https://github.com/junegunn/fzf) for matching; without it `ctrl-a s`
+falls back to tmux's standard session tree. `shanty pick --list` prints the
+ordering without switching.
 
 ## Status Bar
 

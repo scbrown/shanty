@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `ctrl-a s` is now a fuzzy session switcher (`shanty pick`) in a popup, replacing
+  tmux's stock `choose-tree`. It filters from the first keystroke, and the session
+  you last switched *away from* is the top row under the cursor, so `ctrl-a s
+  Enter` is a toggle back. Ordering is by `session_last_attached` — when you were
+  last *in* a session — deliberately not `choose-tree -O time`, which sorts by
+  *activity* and on a busy server ranks whichever session most recently printed
+  output rather than the one you came from. The current session is not offered.
+  Uses fzf; without it the key falls back to `choose-tree -Zs`, checked when the
+  key is pressed rather than frozen at config-generation time.
 - `crewid` segment — who a pane belongs to: the agent's mark, name, role, and
   shantytown's own busy/idle verdict, plus a flag when st reports the agent is
   running settings older than the file on disk
