@@ -15,9 +15,15 @@ build:
     go build -ldflags "{{ldflags}}" -o {{binary}} ./cmd/shanty
 
 # Install to ~/.local/bin
+#
+# Temp file + rename, not a plain cp: cp writes through to the existing inode and
+# the kernel refuses that for a running binary ("Text file busy"). The status bar
+# re-runs `shanty seg` in every pane, so on a host using shanty that is the normal
+# state. A rename swaps the directory entry; running processes keep the old inode.
 install: build
     mkdir -p {{install_dir}}
-    cp {{binary}} {{install_dir}}/{{binary}}
+    cp {{binary}} {{install_dir}}/.{{binary}}.new
+    mv -f {{install_dir}}/.{{binary}}.new {{install_dir}}/{{binary}}
     @echo "Installed {{binary}} to {{install_dir}}"
 
 # Run all tests

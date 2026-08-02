@@ -15,9 +15,20 @@ LDFLAGS := -X github.com/scbrown/shanty/internal/cmd.Version=$(VERSION) \
 build:
 	go build -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY) ./cmd/shanty
 
+# Install via a temp file and a rename, NOT a plain cp.
+#
+# cp writes THROUGH to the existing inode, and the kernel refuses that for a
+# binary that is currently executing: "cp: cannot create regular file ...: Text
+# file busy". On any host actually using shanty that is the normal state, not an
+# edge case — the status bar re-runs `shanty seg` every few seconds in every
+# pane, so `make install` fails precisely when shanty is in use.
+#
+# A rename swaps the directory entry instead. Already-running processes keep the
+# old inode until they exit, and the next exec gets the new binary.
 install: build
 	@mkdir -p $(INSTALL_DIR)
-	@cp $(BUILD_DIR)/$(BINARY) $(INSTALL_DIR)/$(BINARY)
+	@cp $(BUILD_DIR)/$(BINARY) $(INSTALL_DIR)/.$(BINARY).new
+	@mv -f $(INSTALL_DIR)/.$(BINARY).new $(INSTALL_DIR)/$(BINARY)
 	@echo "Installed $(BINARY) to $(INSTALL_DIR)"
 
 test:
