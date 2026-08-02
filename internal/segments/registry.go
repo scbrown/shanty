@@ -17,6 +17,7 @@ var Registry = map[string]Segment{
 	"stats":   Stats{},  // what they did: activity, files, tokens
 	"anchor":  Anchor{}, // just the item id (superseded by task)
 	"crew":    Crew{},
+	"usage":   Usage{}, // fleet capacity: both Claude budgets + the tier in force
 	"events":  Events{},
 	"inbox":   Inbox{},
 	"harness": Harness{},
@@ -26,6 +27,6 @@ var Registry = map[string]Segment{
 func AllNames() []string {
 	return []string{
 		"session", "clock", "host", "cpu", "mem", "load", "disk",
-		"crewid", "task", "stats", "anchor", "crew", "events", "inbox", "harness",
+		"crewid", "task", "stats", "anchor", "crew", "usage", "events", "inbox", "harness",
 	}
 }

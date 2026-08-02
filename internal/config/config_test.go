@@ -69,7 +69,11 @@ func TestDefaultStatusBarSegments(t *testing.T) {
 	// `task` supersedes `anchor` here: it shows the same item id PLUS the title, so
 	// no information left the bar. `anchor` stays in the Registry for anyone whose
 	// bar names it explicitly.
-	expected := []string{"crewid", "task", "events", "inbox", "crew", "stats",
+	// `usage` sits next to `crew`: both are FLEET-wide facts (who is busy, how
+	// much budget is left) as opposed to the per-agent ones before them, so they
+	// read as a pair. It is deliberately NOT in perAgentSegments — the Claude
+	// budget belongs to the account, not the pane.
+	expected := []string{"crewid", "task", "events", "inbox", "crew", "usage", "stats",
 		"harness", "cpu", "mem", "host", "clock"}
 	if len(cfg.Right) != len(expected) {
 		t.Errorf("expected Right=%v, got %v", expected, cfg.Right)

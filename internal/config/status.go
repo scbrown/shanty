@@ -33,7 +33,7 @@ type StatusBarConfig struct {
 func DefaultStatusBar() StatusBarConfig {
 	return StatusBarConfig{
 		Left:  []string{"session"},
-		Right: []string{"crewid", "task", "events", "inbox", "crew", "stats", "harness", "cpu", "mem", "host", "clock"},
+		Right: []string{"crewid", "task", "events", "inbox", "crew", "usage", "stats", "harness", "cpu", "mem", "host", "clock"},
 	}
 }
 
