@@ -20,6 +20,19 @@ jobs:
         with:
           go-version: "1.24"
 
+      # THE GATE, and it did not exist before v0.3.0: this workflow went from
+      # checkout straight to publish, so a tag on a commit whose CI was red —
+      # or had never run at all — shipped binaries to four platforms with a
+      # version number that implies somebody checked. CI being green on main is
+      # not the same guarantee: a tag can name any commit.
+      #
+      # Kept as a NAMED WORKFLOW STEP rather than a goreleaser `before` hook so
+      # that it is separately reported in the run, instead of buried inside the
+      # goreleaser step's log. Same shape as shantytown's release workflow —
+      # one owner, one pattern.
+      - name: Test
+        run: go test ./...
+
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
