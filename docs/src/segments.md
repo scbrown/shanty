@@ -68,12 +68,18 @@ a multi-agent workspace manager. They shell out to shantytown's `st` CLI.
 |---------|-------------|---------|
 | `crewid` | Who this pane is: mark, name, role, state | `🦊 bond·wkr busy` |
 | `task` | The item held, with its title | `⚓ ss-1 rework the cache` |
-| `stats` | Activity, files touched, token traffic | `Σ 412⚡ 17f 222ktok` |
+| `stats` | Activity, files, input/output tokens, prompt-cache hit rate | `Σ 412⚡ 17f in180k out42k cache50%` |
 | `crew` | Busy / total workers | `⚙ 3/9` |
 | `events` | Undelivered stop events for you | `⚠ 2` |
 | `inbox` | Unread messages | `✉ 1` |
 | `harness` | Non-default agent program (silent at the deployment default) | `agent claude` |
 | `anchor` | The held item's id alone (superseded by `task`) | `⚓ ss-1` |
+
+The stats cache percentage is `cache_read / usage_in`. `usage_in` is normalized
+prompt traffic: Claude's base, cache-read and cache-creation dimensions are
+combined, while Codex's input total already includes its cached subset. If the
+installed `st` predates these transcript dimensions, the bar still shows the
+legacy input/output split and does not invent a cache percentage.
 
 ## Failure is visible
 

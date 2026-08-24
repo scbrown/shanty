@@ -22,7 +22,7 @@ System segments: clock, host, cpu, mem, load, disk
 shantytown segments, which read the st CLI:
   crewid   who this pane is — mark, name, role, and st's busy/idle verdict
   task     what they hold — item id and title
-  stats    what they did — activity, files touched, token traffic
+  stats    what they did — activity, files, input/output tokens, cache hit rate
   crew     the fleet's busy/total count
   events   undelivered stop events addressed to this agent
   inbox    unread messages
