@@ -17,7 +17,7 @@ func (m Mem) Name() string {
 func (m Mem) Render() string {
 	data, err := os.ReadFile("/proc/meminfo")
 	if err != nil {
-		return "n/a"
+		return "mem n/a"
 	}
 
 	var total, available uint64
@@ -36,11 +36,11 @@ func (m Mem) Render() string {
 	}
 
 	if total == 0 {
-		return "n/a"
+		return "mem n/a"
 	}
 
 	used := total - available
 	pct := float64(used) / float64(total) * 100.0
 	color := colorForPercent(pct)
-	return fmt.Sprintf("#[fg=%s]%d%%#[default]", color, int(pct))
+	return fmt.Sprintf("#[fg=%s]mem %d%%#[default]", color, int(pct))
 }

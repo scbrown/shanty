@@ -44,9 +44,8 @@ func TestLoadRender(t *testing.T) {
 		t.Errorf("expected name 'load', got %q", l.Name())
 	}
 	result := l.Render()
-	// Should be a number like "0.5" or "n/a"
-	if result == "" {
-		t.Error("expected non-empty result")
+	if !strings.HasPrefix(result, "load ") {
+		t.Errorf("expected an identified load value, got %q", result)
 	}
 }
 
@@ -60,7 +59,10 @@ func TestMemRender(t *testing.T) {
 	if result == "" {
 		t.Error("expected non-empty result")
 	}
-	if result != "n/a" && !strings.Contains(result, "%") {
+	if !strings.Contains(result, "mem ") {
+		t.Errorf("expected a memory label in result, got %q", result)
+	}
+	if result != "mem n/a" && !strings.Contains(result, "%") {
 		t.Errorf("expected percentage in result, got %q", result)
 	}
 }
@@ -74,8 +76,18 @@ func TestDiskRender(t *testing.T) {
 	if result == "" {
 		t.Error("expected non-empty result")
 	}
-	if result != "n/a" && !strings.Contains(result, "%") {
+	if !strings.Contains(result, "disk ") {
+		t.Errorf("expected a disk label in result, got %q", result)
+	}
+	if result != "disk n/a" && !strings.Contains(result, "%") {
 		t.Errorf("expected percentage in result, got %q", result)
+	}
+}
+
+func TestCPURenderCarriesIdentity(t *testing.T) {
+	result := CPU{}.Render()
+	if !strings.Contains(result, "cpu ") {
+		t.Errorf("expected a CPU label in result, got %q", result)
 	}
 }
 
@@ -168,15 +180,6 @@ func TestPerAgentSegmentsAreLoudWithoutIdentity(t *testing.T) {
 		if !strings.Contains(got, "⚠") {
 			t.Errorf("segment %q rendered %q with no identity, want a ⚠ marker", seg.Name(), got)
 		}
-	}
-}
-
-func TestHarnessRendersNameNotDuration(t *testing.T) {
-	// Regression guard: this segment replaced one that rendered hours as
-	// "4h". A harness is a name — no unit may be appended.
-	t.Setenv("SHANTY_AGENT", "")
-	if got := (Harness{}).Render(); strings.HasSuffix(got, "h#[default]") {
-		t.Errorf("harness rendered a duration-style suffix: %q", got)
 	}
 }
 

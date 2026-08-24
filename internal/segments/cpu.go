@@ -19,12 +19,12 @@ func (c CPU) Name() string {
 func (c CPU) Render() string {
 	idle1, total1 := readCPUStat()
 	if total1 == 0 {
-		return "n/a"
+		return "cpu n/a"
 	}
 	time.Sleep(200 * time.Millisecond)
 	idle2, total2 := readCPUStat()
 	if total2 == total1 {
-		return "0%"
+		return "cpu 0%"
 	}
 
 	idleDelta := float64(idle2 - idle1)
@@ -32,7 +32,7 @@ func (c CPU) Render() string {
 	usage := (1.0 - idleDelta/totalDelta) * 100.0
 
 	color := colorForPercent(usage)
-	return fmt.Sprintf("#[fg=%s]%d%%#[default]", color, int(usage))
+	return fmt.Sprintf("#[fg=%s]cpu %d%%#[default]", color, int(usage))
 }
 
 func readCPUStat() (idle, total uint64) {

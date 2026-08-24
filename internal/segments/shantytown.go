@@ -508,8 +508,17 @@ func (Harness) Render() string {
 		return loud("harness?")
 	}
 	if name == "" {
+		return loud("harness?")
+	}
+	defaultName, err := stread.DefaultHarness()
+	if err != nil {
+		return loud("harness?")
+	}
+	if name == defaultName {
 		return hidden
 	}
-	// A harness is a NAME, not a duration — render it bare. No unit suffix.
-	return paint(colCyan, "⏱ "+name)
+	// A harness is a program, not elapsed time. Name only deviations from the
+	// deployment default, using font-safe text instead of a stopwatch glyph that
+	// reads as a timer.
+	return paint(colCyan, "agent "+name)
 }

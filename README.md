@@ -27,7 +27,7 @@ and no shell scripts anywhere.
 
 <p align="center">
   <em>Shanty's status bar with the optional <a href="https://github.com/scbrown/shantytown">shantytown</a> segments —
-  ⚓ the work item this agent holds, ⚠ undelivered stop events, ⏱ its harness — beside the usual CPU, memory and clock.</em>
+  ⚓ the work item this agent holds and ⚠ undelivered stop events — beside labelled CPU, memory and clock values. A non-default agent program names itself.</em>
 </p>
 
 ## See It In Action
@@ -266,10 +266,10 @@ Default layout — left: `session`; right: `cpu`, `mem`, `host`, `clock`.
 | `session` | Current session name | `main` |
 | `clock` | Current time (HH:MM) | `14:32` |
 | `host` | Hostname | `dev-box` |
-| `cpu` | CPU usage, color-coded (samples `/proc/stat`) | `3%` |
-| `mem` | Memory usage, color-coded | `42%` |
-| `load` | 1-minute load average | `0.5` |
-| `disk` | Root partition usage | `61%` |
+| `cpu` | CPU usage, color-coded (samples `/proc/stat`) | `cpu 3%` |
+| `mem` | Memory usage, color-coded | `mem 42%` |
+| `load` | 1-minute load average | `load 0.5` |
+| `disk` | Root partition usage | `disk 61%` |
 
 Color coding: green (<50%), orange (50–79%), red (80%+).
 
@@ -287,14 +287,15 @@ They shell out to shantytown's `st` CLI.
 | `crew` | Busy / total workers | `⚙ 3/9` |
 | `events` | Undelivered stop events for you | `⚠ 2` |
 | `inbox` | Unread messages | `✉ 1` |
-| `harness` | Agent runtime backing you | `⏱ claude` |
+| `harness` | Non-default agent program (silent at the deployment default) | `agent claude` |
 | `anchor` | The held item's id alone (superseded by `task`) | `⚓ ss-1` |
 
 **These require the `st` CLI** and render as an empty string when no `st` binary
 exists at all — so they cost nothing, and show nothing, if you don't use
-shantytown. That is the ONLY case in which they go quiet. When `st` is present they
-are loud about anything they cannot answer, because a bar that blanks on failure
-looks healthy:
+shantytown. The `harness` segment also stays intentionally quiet when the agent
+uses the deployment default; it names only deviations. When `st` is present they
+remain loud about anything they cannot answer, because a bar that blanks on
+failure looks healthy:
 
 | Situation | Rendering |
 |-----------|-----------|

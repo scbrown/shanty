@@ -15,17 +15,17 @@ func (d Disk) Name() string {
 func (d Disk) Render() string {
 	var stat syscall.Statfs_t
 	if err := syscall.Statfs("/", &stat); err != nil {
-		return "n/a"
+		return "disk n/a"
 	}
 
 	total := stat.Blocks * uint64(stat.Bsize)
 	free := stat.Bfree * uint64(stat.Bsize)
 	if total == 0 {
-		return "n/a"
+		return "disk n/a"
 	}
 
 	used := total - free
 	pct := float64(used) / float64(total) * 100.0
 	color := colorForPercent(pct)
-	return fmt.Sprintf("#[fg=%s]%d%%#[default]", color, int(pct))
+	return fmt.Sprintf("#[fg=%s]disk %d%%#[default]", color, int(pct))
 }

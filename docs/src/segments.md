@@ -45,19 +45,19 @@ System hostname.
 
 ### cpu
 
-CPU usage as a percentage, color-coded by threshold. Samples `/proc/stat` over a 200ms window.
+CPU usage as a labelled percentage (`cpu 23%`), color-coded by threshold. Samples `/proc/stat` over a 200ms window.
 
 ### mem
 
-Memory usage as a percentage, color-coded. Reads from `/proc/meminfo`.
+Memory usage as a labelled percentage (`mem 61%`), color-coded. Reads from `/proc/meminfo`.
 
 ### load
 
-1-minute load average from `/proc/loadavg`.
+Labelled 1-minute load average (`load 1.4`) from `/proc/loadavg`.
 
 ### disk
 
-Root partition (`/`) usage as a percentage, color-coded.
+Root partition (`/`) usage as a labelled percentage (`disk 88%`), color-coded.
 
 ## shantytown segments
 
@@ -72,15 +72,17 @@ a multi-agent workspace manager. They shell out to shantytown's `st` CLI.
 | `crew` | Busy / total workers | `⚙ 3/9` |
 | `events` | Undelivered stop events for you | `⚠ 2` |
 | `inbox` | Unread messages | `✉ 1` |
-| `harness` | Agent runtime backing you | `⏱ claude` |
+| `harness` | Non-default agent program (silent at the deployment default) | `agent claude` |
 | `anchor` | The held item's id alone (superseded by `task`) | `⚓ ss-1` |
 
 ## Failure is visible
 
 A status segment that goes blank when it breaks reads as "nothing to report", so it
-gets believed. These segments render an empty string in exactly ONE case: no `st`
-binary exists anywhere, meaning you do not run shantytown and must not be warned
-about a tool you never installed.
+gets believed. The st-backed segments render an empty string when no `st` binary
+exists anywhere, meaning you do not run shantytown and must not be warned about a
+tool you never installed. The `harness` segment has one additional intentional
+quiet state: the agent uses the deployment's configured default. A non-default
+harness is named, and an unreadable harness or configuration remains loud.
 
 With `st` present, everything else gets words:
 

@@ -42,6 +42,45 @@ func fakeST(t *testing.T, replies map[string]string) {
 	t.Cleanup(stread.ResetBinForTest)
 }
 
+func harnessRoot(t *testing.T, defaultName string) {
+	t.Helper()
+	root := t.TempDir()
+	data := []byte("[harness]\ndefault = \"" + defaultName + "\"\n")
+	if err := os.WriteFile(filepath.Join(root, "shantytown.toml"), data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SHANTY_ROOT", root)
+}
+
+func TestHarnessHidesDeploymentDefault(t *testing.T) {
+	fakeST(t, map[string]string{"anchor villiers --harness": "codex"})
+	harnessRoot(t, "codex")
+	if got := (Harness{}).Render(); got != "" {
+		t.Errorf("default harness rendered %q, want silent", plain(got))
+	}
+}
+
+func TestHarnessNamesDeviationWithoutTimerGlyph(t *testing.T) {
+	fakeST(t, map[string]string{"anchor villiers --harness": "claude"})
+	harnessRoot(t, "codex")
+	got := plain((Harness{}).Render())
+	if got != "agent claude" {
+		t.Errorf("harness deviation rendered %q, want %q", got, "agent claude")
+	}
+	if strings.Contains(got, "⏱") {
+		t.Errorf("harness deviation still looks like a timer: %q", got)
+	}
+}
+
+func TestHarnessIsLoudWhenDefaultCannotBeRead(t *testing.T) {
+	fakeST(t, map[string]string{"anchor villiers --harness": "claude"})
+	t.Setenv("SHANTY_ROOT", t.TempDir())
+	got := plain((Harness{}).Render())
+	if got != "⚠ harness?" {
+		t.Errorf("unreadable harness config rendered %q, want loud failure", got)
+	}
+}
+
 // plain strips tmux colour codes so assertions read as what an operator sees.
 func plain(s string) string {
 	var out strings.Builder
