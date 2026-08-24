@@ -385,8 +385,16 @@ func (Stats) Render() string {
 	if s.Files > 0 {
 		parts = append(parts, fmt.Sprintf("%df", s.Files))
 	}
-	if t := s.Tokens(); t > 0 {
-		parts = append(parts, human(t)+"tok")
+	if s.UsageKnown {
+		parts = append(parts, "in"+human(s.UsageIn), "out"+human(s.UsageOut))
+		if s.UsageIn > 0 {
+			pct := int(float64(s.CacheRead)/float64(s.UsageIn)*100 + 0.5)
+			parts = append(parts, fmt.Sprintf("cache%d%%", pct))
+		}
+	} else if t := s.Tokens(); t > 0 {
+		// Backward-compatible with an older st writer: preserve the requested
+		// split even before transcript/cache dimensions appear on the wire.
+		parts = append(parts, "in"+human(s.TokensIn), "out"+human(s.TokensOut))
 	}
 	return paint(colPurple, "Σ "+strings.Join(parts, " "))
 }

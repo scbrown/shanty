@@ -14,12 +14,16 @@ import (
 // absent store, and st says so plainly. Rendering that as zeros would claim a
 // crew did nothing when the truth is that nobody was counting.
 type Stat struct {
-	Captured  bool // false = st has no capture store; the numbers below are meaningless
-	Events    int  // tool calls plus stops seen in the window
-	Files     int  // distinct files touched
-	Stops     int  // harness stops
-	TokensIn  int
-	TokensOut int
+	Captured   bool // false = st has no capture store; the numbers below are meaningless
+	Events     int  // tool calls plus stops seen in the window
+	Files      int  // distinct files touched
+	Stops      int  // harness stops
+	TokensIn   int
+	TokensOut  int
+	UsageKnown bool // transcript-backed dimensions below were measured
+	UsageIn    int  // total prompt traffic, including cache reads/writes
+	UsageOut   int
+	CacheRead  int
 }
 
 // Tokens is the total token traffic attributed to the agent.
@@ -77,6 +81,14 @@ func parseStats(out, agent string) Stat {
 				s.TokensIn = n
 			case "tokens_out":
 				s.TokensOut = n
+			case "usage_known":
+				s.UsageKnown = n == 1
+			case "usage_in":
+				s.UsageIn = n
+			case "usage_out":
+				s.UsageOut = n
+			case "cache_read":
+				s.CacheRead = n
 			}
 		}
 		return s

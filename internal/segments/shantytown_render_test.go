@@ -243,13 +243,30 @@ func TestCrewIDKeepsIdentityWhenStateIsUnknowable(t *testing.T) {
 func TestStatsRendersTheNumbers(t *testing.T) {
 	fakeST(t, map[string]string{
 		"stats villiers": "st stats — last 24h\n" +
-			"  villiers    events=412  files=17  stops=6  tokens_in=180000 tokens_out=42000",
+			"  villiers    events=412  files=17  stops=6  tokens_in=180000 tokens_out=42000" +
+			" usage_known=1 usage_in=180000 usage_out=42000 cache_read=90000 usage=claude_tokens=222000",
 	})
 	got := plain(Stats{}.Render())
-	for _, want := range []string{"412", "17f", "222ktok"} {
+	for _, want := range []string{"412", "17f", "in180k", "out42k", "cache50%"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("render %q is missing %q", got, want)
 		}
+	}
+}
+
+func TestStatsFallsBackToLegacySplitBeforeUsageWireUpgrade(t *testing.T) {
+	fakeST(t, map[string]string{
+		"stats villiers": "st stats — last 24h\n" +
+			"  villiers events=2 files=0 stops=1 tokens_in=12000 tokens_out=3400",
+	})
+	got := plain(Stats{}.Render())
+	for _, want := range []string{"in12k", "out3.4k"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("legacy render %q is missing %q", got, want)
+		}
+	}
+	if strings.Contains(got, "cache") {
+		t.Errorf("legacy render %q invented cache data", got)
 	}
 }
 
