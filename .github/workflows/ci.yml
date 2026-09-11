@@ -14,6 +14,23 @@ jobs:
         go-version: ["1.24"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The changelog guard below needs the COMMIT RANGE, and the default
+          # depth-1 checkout has no history to range over.
+          fetch-depth: 0
+
+      # Three commits reached main as a released-to-the-fleet build with an empty
+      # [Unreleased] section, because nothing checked (aegis-fk8df2). Scoped to a
+      # RANGE rather than to pull_request: this repo lands work by pushing to main
+      # (one merge commit in the last thirty), so a PR-only guard would read as
+      # wired and fire on nothing.
+      - name: Changelog
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            scripts/check-changelog.sh "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+          else
+            scripts/check-changelog.sh "${{ github.event.before }}" "${{ github.sha }}"
+          fi
 
       - uses: actions/setup-go@v5
         with:

@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The `shantytown` segment now splits token usage into prompt and completion
+  traffic and reports a cache hit rate — `in12k out3k cache87%` where it
+  previously showed a single `15ktok`. The split is the number you act on: a
+  high `in` with a low cache rate is the expensive shape, and one aggregate
+  figure cannot tell that apart from a long completion. The rate is cache reads
+  over total prompt traffic, so it answers "how much of what I sent did I pay
+  for again".
+
+  The segment stays backward-compatible with an older `st` writer: when the
+  transcript-backed dimensions are absent from the wire it still renders the
+  requested `in`/`out` split from the counts it does have, rather than falling
+  back to the old aggregate. Only the cache rate needs the newer writer, and it
+  is omitted rather than shown as zero when unmeasured — a rate of `0%` and a
+  rate nobody measured are different facts.
+
+### Changed
+
+- The system-metric segments now label what they are showing: `cpu 23%`,
+  `mem 61%`, `load 1.4`, `disk 88%`. Four bare numbers in a row is a puzzle the
+  reader has to solve from position alone, and position changes with
+  configuration.
+
+- The `harness` segment is silent when the agent is running the deployment's
+  configured default, and names the program only when it is *not* the default.
+  A status bar that reports the expected state on every pane spends attention
+  without giving information; the interesting case is the exception. An
+  unreadable harness or configuration stays loud — this quiets the boring
+  answer, never the unknown one.
+
 ## [0.3.0] - 2026-08-02
 
 ### Added
