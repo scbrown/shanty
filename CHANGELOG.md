@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-11
+
 ### Added
 
 - The `shantytown` segment now splits token usage into prompt and completion
@@ -166,6 +168,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `shanty seg list` to discover available segments
 - MIT license
 
+[0.4.0]: https://github.com/scbrown/shanty/releases/tag/v0.4.0
 [0.3.0]: https://github.com/scbrown/shanty/releases/tag/v0.3.0
 [0.2.0]: https://github.com/scbrown/shanty/releases/tag/v0.2.0
 [0.1.0]: https://github.com/scbrown/shanty/releases/tag/v0.1.0
