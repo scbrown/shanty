@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The `cpu` and `mem` segments report real numbers on macOS. Both read `/proc`,
+  which a BSD userland does not have, so on a Mac the bar permanently showed
+  `cpu n/a mem n/a` — asking a kernel that does not answer and rendering the
+  silence as though the machine had declined to say. Reading now lives per
+  platform in `sysread.go`; Darwin takes cpu from the second `top -l 2` sample
+  (the first is an average since boot, flat on a machine up for days) and memory
+  from `hw.memsize` plus `vm_stat`, counting active + wired + compressor-occupied
+  — what Activity Monitor calls "Memory Used". `n/a` survives for a platform
+  neither reader understands, but it now means "I asked and got nothing" rather
+  than "I only know how to ask Linux".
+
+- The `crewid` segment no longer repeats the agent name and mark. The session
+  pill on the left of the bar already renders `<mark> <agent>`, so a one-agent
+  pane read `🦊 hammond … 🦊 hammond ⚠ st?` — spending the scarcest thing a
+  status bar has on what the eye had already read at the other end. This is a
+  deduplication, not a removal: the role, st's verdict, the evidence behind it
+  and the stale-settings flag all stay, because none of those is said anywhere
+  else, and the mark is still assigned here when an agent has none.
+
+- `st crew` output parses again. Three drifts in st's table each dropped every
+  row on their own: a new HOST column moved the agent out of the first field
+  (so both Mac rows landed under one key and the second overwrote the first),
+  stacked roles like `worker,normal` no longer matched the bare word `worker`,
+  and a `?` in the TREE column was read as the WORK verdict from the column next
+  door — turning "tree unverified" into the louder and different claim that st
+  could not tell. The parse now anchors on the role cell and takes the agent as
+  the field before it, reading the old and new shapes without being told which
+  is which, and a bare `?` counts only when no real verdict appears on the row.
+
+- The `shantytown` segment asks `st agent stats` instead of the retired `st
+  stats` spelling, which survives today only behind a deprecation alias that
+  warns on stderr and says it goes away in two releases (aegis st-1).
+
 ## [0.4.0] - 2026-09-11
 
 ### Added

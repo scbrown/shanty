@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/scbrown/shanty/internal/stread"
+	"runtime"
 )
 
 func TestClockRender(t *testing.T) {
@@ -207,5 +208,55 @@ func TestHuman(t *testing.T) {
 		if got := human(n); got != want {
 			t.Errorf("human(%d) = %q, want %q", n, got, want)
 		}
+	}
+}
+
+// TestCPUAndMemReportRealNumbersOnThisPlatform is the regression test for
+// Stiwi's 2026-09-21 report: "cpu and memory segments are not reported correctly
+// and show as n/a".
+//
+// It asserts on THIS machine, whichever that is, because the defect was exactly a
+// platform assumption: both segments read /proc, so on a BSD userland they
+// rendered a permanent "n/a" while the machine was perfectly capable of
+// answering. A test that mocked the reader would have passed throughout.
+//
+// "n/a" is still a legal answer for a platform neither reader understands — this
+// only refuses it on a platform we claim to support, which is any platform this
+// suite is being run on.
+func TestCPUAndMemReportRealNumbersOnThisPlatform(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		seg  Segment
+	}{{"cpu", CPU{}}, {"mem", Mem{}}} {
+		got := tc.seg.Render()
+		if strings.Contains(got, "n/a") {
+			t.Errorf("%s segment renders %q on %s/%s — it reads a source this "+
+				"platform does not have", tc.name, got, runtime.GOOS, runtime.GOARCH)
+		}
+		if !strings.Contains(got, "%") {
+			t.Errorf("%s segment renders %q, which carries no percentage",
+				tc.name, got)
+		}
+	}
+}
+
+// TestMemUsesTheCompressorFootprintNotItsContents pins the one number in this
+// area that is easy to get wrong by a factor of three.
+//
+// macOS reports both "Pages stored in compressor" (the UNCOMPRESSED size of
+// everything the compressor holds) and "Pages occupied by compressor" (what it
+// actually costs in RAM). On the machine this was written on the first was 20GiB
+// against 16GiB of physical memory — a number that is not merely wrong but
+// impossible, and which would have pinned the segment red forever.
+func TestMemUsesTheCompressorFootprintNotItsContents(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("reads vm_stat, which is a macOS tool")
+	}
+	pct, ok := memPercent()
+	if !ok {
+		t.Fatal("memPercent could not read this machine")
+	}
+	if pct <= 0 || pct > 100 {
+		t.Errorf("memory is %v%%, which is not a share of anything", pct)
 	}
 }

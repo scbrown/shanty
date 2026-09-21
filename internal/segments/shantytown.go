@@ -133,36 +133,54 @@ type CrewID struct{}
 
 func (CrewID) Name() string { return "crewid" }
 
+// IT DOES NOT REPEAT THE NAME (Stiwi, 2026-09-21: "there is an st segment that
+// just says 'hammond' which is a duplicate of the tmux header, so we can remove
+// it").
+//
+// The session pill on the LEFT of the bar already renders `<mark> <agent>`, and
+// this segment used to open with exactly the same two things on the right. On a
+// one-agent pane that made the bar say "🦊 hammond … 🦊 hammond ⚠ st?" — the
+// name twice and the mark twice, spending the scarcest thing a status bar has
+// (width) to say nothing the eye had not already read at the other end.
+//
+// WHAT IS KEPT IS WHAT IS NOT SAID ANYWHERE ELSE: the role, st's verdict on this
+// pane, the evidence behind that verdict, and a stale-settings flag. So this is a
+// deduplication and not a removal — the identity half moved out, the diagnostic
+// half stayed. The `st?` path keeps working for the same reason: it now says only
+// that st could not answer, which was always the informative part of that line.
+//
+// The mark is still ASSIGNED here when the agent has none. Assignment is a
+// persistent side effect the session pill also depends on, and first sight of a
+// pane can happen through either segment.
 func (CrewID) Render() string {
 	agent, problem := identity()
 	if agent == "" {
 		return problem
 	}
 
-	mark := crewid.EmojiFor(agent)
-	if mark == "" {
+	if crewid.EmojiFor(agent) == "" {
 		// First sight of this agent. Assign now and persist, so the mark this pane
-		// gets today is the mark it keeps.
-		if m, err := crewid.Assign([]string{agent}); err == nil {
-			mark = m[agent]
-		}
+		// gets today is the mark it keeps — the session pill reads the same store.
+		_, _ = crewid.Assign([]string{agent})
 	}
 
 	e, err := crewEntry(agent)
 	if err != nil {
-		// We know who we are but not what st thinks of us. Show the identity — it
-		// is still true and still useful — and mark the missing half rather than
-		// dropping the whole segment.
-		return withMark(mark, paint(colFG, agent)) + " " + loud("st?")
+		// We know who we are but not what st thinks of us. The identity is on the
+		// session pill already, so all this has to add is that the other half is
+		// missing.
+		return loud("st?")
 	}
 
-	label := agent
+	out := ""
 	if e.Role != "" {
-		label += "·" + shortRole(e.Role)
+		out = paint(colFG, shortRole(e.Role))
 	}
-	out := withMark(mark, paint(colFG, label))
 
 	v := stread.ParseVerdict(e.State)
+	// `strings.TrimSpace` at the end rather than a conditional separator here: a
+	// card with no role leaves `out` empty, and a bar segment that begins with a
+	// stray space renders as a visible gap tmux will not collapse.
 	out += " " + paint(stateColor(e.State), v.Word)
 	// The evidence behind the verdict, in words. A coordinator deciding whether to
 	// dispatch is choosing between this bar and some other idle signal; a verdict
@@ -183,7 +201,7 @@ func (CrewID) Render() string {
 		// launch, so this is exactly the kind of thing a bar should not hide.
 		out += " " + paint(colOrange, "settings:STALE")
 	}
-	return out
+	return strings.TrimSpace(out)
 }
 
 // withMark prefixes the mark when there is one. A missing mark is not an error
