@@ -143,13 +143,14 @@ func TestParseStatsAgentWithNoActivity(t *testing.T) {
 }
 
 func TestStatsReportsNoStoreAsAnAnswerNotAnError(t *testing.T) {
-	// `st stats` exits NONZERO to say the capture store does not exist yet, and
+	// `st agent stats` exits NONZERO to say the capture store does not exist yet, and
 	// prints the explanation on stdout. Run must therefore hand back stdout
 	// alongside the error, and Stats must turn this into Captured=false with a nil
 	// error — it is a real, renderable state ("nobody is counting"), not a failure.
 	dir := t.TempDir()
 	fake := filepath.Join(dir, "st")
 	script := "#!/bin/sh\n" +
+		"[ \"$1 $2 $3\" = 'agent stats villiers' ] || exit 2\n" +
 		"echo 'st stats — no capture store yet (.shanty/stats.sqlite absent).'\n" +
 		"exit 1\n"
 	if err := os.WriteFile(fake, []byte(script), 0o755); err != nil {

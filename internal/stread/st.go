@@ -151,7 +151,7 @@ func workDir() string {
 // Run executes st with the given arguments and returns trimmed stdout.
 //
 // Stdout is returned even alongside an error. st uses a nonzero exit to say
-// things that are not failures — `st stats` exits 1 to report that no capture
+// things that are not failures — `st agent stats` exits 1 to report that no capture
 // store exists yet, and prints that explanation on stdout — so a Run that threw
 // the output away would force callers to render "error" where st gave them a
 // perfectly clear answer.

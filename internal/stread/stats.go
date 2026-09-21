@@ -5,10 +5,10 @@ import (
 	"strings"
 )
 
-// Stat is one agent's slice of `st stats` — what that crew member actually did in
+// Stat is one agent's slice of `st agent stats` — what that crew member actually did in
 // the window st reports on.
 //
-// Captured is the field that keeps this honest. `st stats` is wired as a command
+// Captured is the field that keeps this honest. `st agent stats` is wired as a command
 // on every deployment, but its numbers come from a LOCAL capture store that only
 // exists once the harness hooks that feed it are installed. Absent hooks means
 // absent store, and st says so plainly. Rendering that as zeros would claim a
@@ -40,7 +40,7 @@ const noStoreMarker = "no capture store"
 // answer — a real, renderable state, not an error. An error means we could not
 // ask st at all.
 func Stats(agent string) (Stat, error) {
-	out, err := Run("stats", agent)
+	out, err := Run("agent", "stats", agent)
 	if strings.Contains(out, noStoreMarker) {
 		return Stat{}, nil
 	}
