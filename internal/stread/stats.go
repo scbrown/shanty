@@ -40,7 +40,7 @@ const noStoreMarker = "no capture store"
 // answer — a real, renderable state, not an error. An error means we could not
 // ask st at all.
 func Stats(agent string) (Stat, error) {
-	out, err := Run("stats", agent)
+	out, err := Run("agent", "stats", agent)
 	if strings.Contains(out, noStoreMarker) {
 		return Stat{}, nil
 	}

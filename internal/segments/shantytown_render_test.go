@@ -242,7 +242,7 @@ func TestCrewIDKeepsIdentityWhenStateIsUnknowable(t *testing.T) {
 
 func TestStatsRendersTheNumbers(t *testing.T) {
 	fakeST(t, map[string]string{
-		"stats villiers": "st stats — last 24h\n" +
+		"agent stats villiers": "st stats — last 24h\n" +
 			"  villiers    events=412  files=17  stops=6  tokens_in=180000 tokens_out=42000" +
 			" usage_known=1 usage_in=180000 usage_out=42000 cache_read=90000 usage=claude_tokens=222000",
 	})
@@ -256,7 +256,7 @@ func TestStatsRendersTheNumbers(t *testing.T) {
 
 func TestStatsFallsBackToLegacySplitBeforeUsageWireUpgrade(t *testing.T) {
 	fakeST(t, map[string]string{
-		"stats villiers": "st stats — last 24h\n" +
+		"agent stats villiers": "st stats — last 24h\n" +
 			"  villiers events=2 files=0 stops=1 tokens_in=12000 tokens_out=3400",
 	})
 	got := plain(Stats{}.Render())
