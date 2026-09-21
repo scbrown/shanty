@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The `shantytown` segment asks `st agent stats` instead of the retired `st
+  stats` spelling. st regrouped its surface on 2026-09-17; the old spelling is
+  still answered by a deprecation alias, but that alias warns on stderr and says
+  of itself that it goes away in two releases. A segment calling it would have
+  kept working right up until it silently stopped, which is the failure mode a
+  status bar can least afford (aegis st-1).
+
 ## [0.4.0] - 2026-09-11
 
 ### Added
