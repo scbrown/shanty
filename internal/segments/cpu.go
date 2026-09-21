@@ -10,6 +10,11 @@ import (
 
 // CPU renders CPU usage percentage with color coding.
 // green (<50%), orange (<80%), red (>=80%).
+//
+// The READING is in sysread.go, per platform; this type only decides how to say
+// it. Splitting them is what let the same colour rule and the same "n/a" apply to
+// a Linux /proc sample and a Darwin `top` sample without either knowing about the
+// other.
 type CPU struct{}
 
 func (c CPU) Name() string {
@@ -17,23 +22,21 @@ func (c CPU) Name() string {
 }
 
 func (c CPU) Render() string {
-	idle1, total1 := readCPUStat()
-	if total1 == 0 {
+	usage, ok := cpuPercent()
+	if !ok {
+		// Still "n/a", and still the honest answer — but now it means every
+		// source this platform has was asked and none of them answered, rather
+		// than "we only know how to read /proc".
 		return "cpu n/a"
 	}
-	time.Sleep(200 * time.Millisecond)
-	idle2, total2 := readCPUStat()
-	if total2 == total1 {
-		return "cpu 0%"
-	}
-
-	idleDelta := float64(idle2 - idle1)
-	totalDelta := float64(total2 - total1)
-	usage := (1.0 - idleDelta/totalDelta) * 100.0
-
 	color := colorForPercent(usage)
 	return fmt.Sprintf("#[fg=%s]cpu %d%%#[default]", color, int(usage))
 }
+
+// sleepBetweenCPUSamples is the gap between the two /proc/stat reads. A single
+// read of a monotonically increasing counter is a total, not a rate; the delta is
+// the measurement. Named so a test can see the cost rather than guess at it.
+func sleepBetweenCPUSamples() { time.Sleep(200 * time.Millisecond) }
 
 func readCPUStat() (idle, total uint64) {
 	data, err := os.ReadFile("/proc/stat")

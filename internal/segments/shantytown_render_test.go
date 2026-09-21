@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/scbrown/shanty/internal/stread"
+
+	"github.com/scbrown/shanty/internal/crewid"
 )
 
 // fakeST installs a stub `st` that answers from the given canned replies, keyed by
@@ -198,17 +200,36 @@ func TestTheThreePlateRenderingsAreDistinct(t *testing.T) {
 	}
 }
 
-func TestCrewIDShowsMarkNameRoleAndState(t *testing.T) {
+func TestCrewIDShowsRoleAndStateAndNotTheNameAgain(t *testing.T) {
+	// THE DEDUPLICATION. The session pill at the other end of the bar already
+	// renders `<mark> <agent>`; this segment used to open with the same two
+	// things, so a pane read "🦊 villiers … 🦊 villiers wkr busy" — the name and
+	// the mark twice, spending the scarcest thing a status bar has to repeat what
+	// the eye had already taken in.
 	fakeST(t, map[string]string{"crew": busyCrew})
 	got := plain(CrewID{}.Render())
-	for _, want := range []string{"villiers", "wkr", "busy"} {
+	for _, want := range []string{"wkr", "busy"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("render %q is missing %q", got, want)
 		}
 	}
-	// A mark is assigned on first sight, so the pane is identifiable immediately.
-	if strings.HasPrefix(got, "villiers") {
-		t.Errorf("render %q carries no mark", got)
+	if strings.Contains(got, "villiers") {
+		t.Errorf("render %q repeats the agent name, which the session pill "+
+			"already shows at the other end of the bar", got)
+	}
+}
+
+func TestCrewIDStillAssignsAMarkOnFirstSight(t *testing.T) {
+	// The mark left the RENDER, not the segment. Assignment is a persistent side
+	// effect the session pill depends on, and first sight of a pane can happen
+	// through either segment — so dropping the assignment with the display would
+	// have left whichever segment ran second to mint the mark, silently making
+	// which one you looked at first matter.
+	fakeST(t, map[string]string{"crew": busyCrew})
+	_ = CrewID{}.Render()
+	if crewid.EmojiFor("villiers") == "" {
+		t.Error("no mark was assigned on first sight, so the session pill has " +
+			"none to show")
 	}
 }
 
@@ -225,18 +246,21 @@ func TestCrewIDFlagsStaleSettings(t *testing.T) {
 	}
 }
 
-func TestCrewIDKeepsIdentityWhenStateIsUnknowable(t *testing.T) {
+func TestCrewIDSaysOnlyThatStateIsUnknowable(t *testing.T) {
 	// st answered, but not about us. The identity half is still true and still
 	// useful; dropping the whole segment would throw it away.
 	fakeST(t, map[string]string{
 		"crew": "  bond    worker    up   current  busy    st-bond",
 	})
 	got := plain(CrewID{}.Render())
-	if !strings.Contains(got, "villiers") {
-		t.Errorf("render %q lost the identity it knew", got)
-	}
 	if !strings.Contains(got, "⚠") {
 		t.Errorf("render %q does not flag the missing crew state", got)
+	}
+	// The identity is NOT repeated here even on this path. It is on the session
+	// pill, which does not depend on st answering at all — so the only thing this
+	// segment has left to contribute when st is silent is that st was silent.
+	if strings.Contains(got, "villiers") {
+		t.Errorf("render %q repeats the agent name the session pill shows", got)
 	}
 }
 

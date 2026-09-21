@@ -1,13 +1,10 @@
 package segments
 
-import (
-	"fmt"
-	"os"
-	"strconv"
-	"strings"
-)
+import "fmt"
 
 // Mem renders memory usage percentage with color coding.
+//
+// The READING is in sysread.go, per platform. See CPU for why the two are apart.
 type Mem struct{}
 
 func (m Mem) Name() string {
@@ -15,32 +12,10 @@ func (m Mem) Name() string {
 }
 
 func (m Mem) Render() string {
-	data, err := os.ReadFile("/proc/meminfo")
-	if err != nil {
+	pct, ok := memPercent()
+	if !ok {
 		return "mem n/a"
 	}
-
-	var total, available uint64
-	for _, line := range strings.Split(string(data), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-		val, _ := strconv.ParseUint(fields[1], 10, 64)
-		switch fields[0] {
-		case "MemTotal:":
-			total = val
-		case "MemAvailable:":
-			available = val
-		}
-	}
-
-	if total == 0 {
-		return "mem n/a"
-	}
-
-	used := total - available
-	pct := float64(used) / float64(total) * 100.0
 	color := colorForPercent(pct)
 	return fmt.Sprintf("#[fg=%s]mem %d%%#[default]", color, int(pct))
 }

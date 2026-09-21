@@ -399,3 +399,86 @@ func TestWhyExplainsTheEvidence(t *testing.T) {
 		}
 	}
 }
+
+// TestParseCrewReadsTheRealFleetShape is the regression test for a bar that
+// showed a permanent "st?" beside panes st could describe perfectly well.
+//
+// Three things about st's real output had drifted past this parser at once, and
+// each one alone was enough to drop every row on the floor:
+//
+//	a HOST column      the agent stopped being the first field
+//	stacked roles      "worker,normal" is not the word "worker"
+//	a "?" in TREE      matched as the WORK verdict, next column over
+//
+// The rows below are copied from a live `st crew` rather than composed, because
+// every one of these was a thing somebody would have sworn the format did not do.
+func TestParseCrewReadsTheRealFleetShape(t *testing.T) {
+	out := strings.Join([]string{
+		"  HOST                   AGENT       ROLE           STATE         SETTINGS TREE      WORK             POSTURE PANE",
+		"  macbookair-stiwi       hammond     administrator  cycle-blocked —        ?         busy             MANUAL  st-hammond",
+		"  macbookair-stiwi       lex         worker,normal  up            current  ?         idle             bypass  st-lex",
+		"  vati                   arnold      escalation-target,keeper,worker down  —        ?         —                —       shanty-arnold",
+	}, "\n")
+
+	crew := ParseCrew(out)
+
+	// THE HOST IS NOT THE AGENT. Before this, both Mac rows were stored under
+	// "macbookair-stiwi" and the later one silently replaced the earlier, so a
+	// lookup by agent name found nothing for either.
+	if _, ok := crew["macbookair-stiwi"]; ok {
+		t.Error("the HOST was stored as an agent")
+	}
+	for _, name := range []string{"hammond", "lex", "arnold"} {
+		if _, ok := crew[name]; !ok {
+			t.Errorf("agent %q was not parsed out of the row", name)
+		}
+	}
+
+	// A STACKED ROLE STILL HAS A TREE POSITION. The rest of the stack is the
+	// deployment's own open vocabulary and cannot be matched against anything.
+	if got := crew["lex"].Role; got != "worker" {
+		t.Errorf("lex's role is %q, want the tree position \"worker\"", got)
+	}
+	if got := crew["arnold"].Role; got != "worker" {
+		t.Errorf("arnold's stacked role is %q, want \"worker\"", got)
+	}
+
+	// THE TREE COLUMN'S "?" IS NOT THE WORK VERDICT. Both Mac rows carry a "?"
+	// in TREE; neither agent is in an unknown work state.
+	if got := crew["hammond"].State; got != "busy" {
+		t.Errorf("hammond's state is %q — the tree column's \"?\" won", got)
+	}
+	if got := crew["lex"].State; got != "idle" {
+		t.Errorf("lex's state is %q — the tree column's \"?\" won", got)
+	}
+	if got := crew["lex"].Currency; got != "current" {
+		t.Errorf("lex's settings currency is %q, want \"current\"", got)
+	}
+}
+
+// TestParseCrewStillReadsTheOlderTwoColumnShape is the other half of the
+// position-tolerance claim. shanty reads st's HUMAN output, so it meets whatever
+// version of st is installed — a parse that only understands today's columns
+// breaks the bar on every host that has not upgraded yet.
+func TestParseCrewStillReadsTheOlderTwoColumnShape(t *testing.T) {
+	crew := ParseCrew("  villiers    worker    up   current  busy    st-villiers")
+	e, ok := crew["villiers"]
+	if !ok {
+		t.Fatal("the pre-HOST-column row no longer parses")
+	}
+	if e.Role != "worker" || e.State != "busy" || e.Currency != "current" {
+		t.Errorf("parsed %+v from the older shape", e)
+	}
+}
+
+// TestParseCrewKeepsAnHonestQuestionMark — the negative control on the fix
+// above. "?" is a REAL verdict ("st could not tell"), and suppressing it would
+// trade one wrong answer for another: an agent whose work state genuinely cannot
+// be read must not quietly render as something knowable.
+func TestParseCrewKeepsAnHonestQuestionMark(t *testing.T) {
+	crew := ParseCrew(
+		"  macbookair-stiwi  lex  worker,normal  up  current  ok  ?  bypass  st-lex")
+	if got := crew["lex"].State; StateWord(got) != "?" {
+		t.Errorf("lex's state is %q, but st really could not tell", got)
+	}
+}
