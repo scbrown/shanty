@@ -457,3 +457,59 @@ func TestCrewIDDoesNotPaintIdleWithLiveWorkAsCalm(t *testing.T) {
 		t.Errorf("render %q hides that work is still running", plain(got))
 	}
 }
+
+// TestCrewIDReadsACycleBlockedAdministratorsRealVerdict is the regression test
+// for aegis-64q1m0: on macbookair-stiwi, `SHANTY_AGENT=hammond shanty seg crewid
+// st-hammond` rendered `admin ? (st could not tell)` while `st crew` showed
+// hammond's WORK cell as `busy+1sh`.
+//
+// The row below is copied verbatim from the bead's own repro (STATE=cycle-blocked,
+// TREE=?, WORK=busy+1sh, POSTURE=?) rather than composed, because the whole point
+// is to pin the real shape st sends, TREE-`?` and POSTURE-`?` both included.
+//
+// `cycle-blocked` is st's STATE column — a request-level disposition (the agent's
+// cycle was refused; shantytown cli.py ~6072) — and it is NOT a WORK verdict: a
+// cycle-blocked agent's pane is up by construction, so st still captures and
+// reports a real WORK cell (busy/idle/…) alongside it. StateRank/StateWord
+// classify the WORK cell only, and Entry does not even retain the STATE column, so
+// `cycle-blocked` reaching this parser is inert by design — it must not need an
+// entry in StateRank to be ignored correctly. What must NOT happen is TREE's or
+// POSTURE's bare `?` winning over the real WORK cell two fields to its right, and
+// TestParseCrewReadsTheRealFleetShape (in stread) already guards the TREE-`?`
+// case with a `busy` WORK cell; this test guards the same row end-to-end through
+// CrewID.Render(), with a `busy+1sh` WORK cell and a `?` POSTURE on top.
+func TestCrewIDReadsACycleBlockedAdministratorsRealVerdict(t *testing.T) {
+	fakeST(t, map[string]string{
+		"crew": "  macbookair-stiwi       hammond     administrator  cycle-blocked —        ?         busy+1sh         ?       st-hammond",
+	})
+	t.Setenv("SHANTY_AGENT", "hammond")
+	got := plain(CrewID{}.Render())
+	if strings.Contains(got, "st could not tell") {
+		t.Errorf("render %q read the TREE or POSTURE column's bare ? as the WORK verdict", got)
+	}
+	if !strings.Contains(got, "busy") {
+		t.Errorf("render %q lost hammond's real WORK verdict busy+1sh", got)
+	}
+	if !strings.Contains(got, "1 shell live") {
+		t.Errorf("render %q dropped the live-shell evidence behind busy+1sh", got)
+	}
+}
+
+// TestCrewIDReadsTheLiveMacHammondRow pins the exact row captured live from `st
+// crew` on macbookair-stiwi on 2026-09-24 while verifying aegis-64q1m0 — a second
+// real-world shape (WORK=idle, POSTURE=MANUAL) alongside the bead's own repro
+// above, since a parser fixed for one shape has broken on a sibling before
+// (aegis-hvnqyb's HOST-column / stacked-role / TREE-`?` trio).
+func TestCrewIDReadsTheLiveMacHammondRow(t *testing.T) {
+	fakeST(t, map[string]string{
+		"crew": "  macbookair-stiwi       hammond     administrator  cycle-blocked —        ?         idle             MANUAL  st-hammond",
+	})
+	t.Setenv("SHANTY_AGENT", "hammond")
+	got := plain(CrewID{}.Render())
+	if !strings.Contains(got, "admin") || !strings.Contains(got, "idle") {
+		t.Errorf("render %q lost hammond's role or WORK verdict", got)
+	}
+	if strings.Contains(got, "st could not tell") {
+		t.Errorf("render %q read a neighboring ? column as the WORK verdict", got)
+	}
+}
