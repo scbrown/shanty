@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-09-30
+
 ### Changed
 
 - The `usage` segment reads st's versioned JSON (`st crew --governor --json`,
