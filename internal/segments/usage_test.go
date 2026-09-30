@@ -139,3 +139,41 @@ func contains(hay, needle string) bool {
 	}
 	return false
 }
+
+// aegis-apfuey: the REAL `st crew --governor` output on vati, 2026-09-30 18:12Z.
+// st moved to one line per lane; the old parser read "base" as an unknown state
+// and the bar showed "usage ?" on every refresh while st exited 0.
+const stGovernorPerLane = `base ok 34/70/1644 36/70/535644 live 9/9 policy=vati freshest[five_hour@vati,seven_day@vati] no restriction declared
+codex ok ?/?/? 100/-/256011 live 0/9 policy=vati freshest[seven_day@vati] dispatch only P0 and above
+balance 1.82x — prefer codex (base 3.15x vs codex 1.73x, band 1.5x)
+  vati dearing claude live
+  macbookair-stiwi hammond claude live`
+
+func TestGovernorPerLaneOutputRendersTheBaseLane(t *testing.T) {
+	got := strip(renderGovernor(stGovernorPerLane))
+	if got != "Δ 34%5h · 36%7d" {
+		t.Fatalf("got %q", got)
+	}
+	// The codex lane's P0 floor must not leak onto the base (Claude) bar.
+	if contains(renderGovernor(stGovernorPerLane), colRed) {
+		t.Fatal("base shows no tier, so the bar must not be red")
+	}
+}
+
+func TestGovernorPerLaneTierIsReadAfterTheRoster(t *testing.T) {
+	out := "base ok 53/70/100 26/45/900 live 9/9 policy=vati freshest[five_hour@vati] dispatch only P1 and above\n"
+	raw := renderGovernor(out)
+	if !contains(raw, colRed) || !contains(strip(raw), "P1+ ONLY") {
+		t.Fatalf("an engaged base tier must show red and teach: %q", strip(raw))
+	}
+}
+
+func TestGovernorPerLaneLostAndUnpublishedStayHonest(t *testing.T) {
+	if got := strip(renderGovernor("base lost live 0/9 policy=vati freshest[] no restriction declared\n")); got != "⚠ usage ?" && !contains(got, "usage ?") {
+		t.Fatalf("a lost base lane must stay loud, got %q", got)
+	}
+	got := strip(renderGovernor("base ok ?/?/? 36/70/5 live 9/9 policy=vati freshest[seven_day@vati] no restriction declared\n"))
+	if got != "Δ ?5h · 36%7d" {
+		t.Fatalf("an unpublished window must read ?5h, never a number: %q", got)
+	}
+}
