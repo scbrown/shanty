@@ -1,6 +1,7 @@
 package segments
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -34,6 +35,15 @@ func (u Usage) Render() string {
 	if !stread.Installed() {
 		return hidden
 	}
+	// The VERSIONED JSON is the contract (aegis-apfuey). The prose form changed
+	// shape under this segment once and blinded it; the JSON is pinned instead.
+	if js, err := stread.Run("crew", "--governor", "--json"); err == nil {
+		if out, ok := renderGovernorJSON(js); ok {
+			return out
+		}
+	}
+	// Fallback: an st older than the JSON fields (hosts update at different
+	// times). The prose parser still reads the per-lane form.
 	out, err := stread.Run("crew", "--governor")
 	if err != nil {
 		// A governor we cannot ask about is not a governor reading zero.
@@ -42,6 +52,68 @@ func (u Usage) Render() string {
 		return loud("usage ?")
 	}
 	return renderGovernor(out)
+}
+
+// governorSchema is the `st crew --governor --json` version this bar understands.
+const governorSchema = 1
+
+type govWindowJSON struct {
+	Published bool `json:"published"`
+	Pct       *int `json:"pct"`
+	Next      *int `json:"next"`
+}
+
+type govLaneJSON struct {
+	SignalLost bool                     `json:"signal_lost"`
+	Windows    map[string]govWindowJSON `json:"windows"`
+	Effect     *string                  `json:"effect"`
+}
+
+type govJSON struct {
+	Version   *int                   `json:"version"`
+	Governors map[string]govLaneJSON `json:"governors"`
+}
+
+// renderGovernorJSON renders the base lane from the pinned JSON. ok=false means
+// "this st does not carry the bar's fields yet" (no windows): the caller falls
+// back to prose. An UNKNOWN VERSION is the opposite case and must be loud: a new
+// schema read with old assumptions is exactly how this bar went blind before.
+func renderGovernorJSON(js string) (string, bool) {
+	var d govJSON
+	if err := json.Unmarshal([]byte(js), &d); err != nil || d.Version == nil {
+		return "", false
+	}
+	if *d.Version != governorSchema {
+		return loud(fmt.Sprintf("usage schema v%d unsupported", *d.Version)), true
+	}
+	if len(d.Governors) == 0 {
+		return hidden, true // no governor configured: same judgement as `off`
+	}
+	base, found := d.Governors["base"]
+	if !found || base.Windows == nil || base.Effect == nil {
+		return "", false
+	}
+	if base.SignalLost {
+		return loud("usage ?"), true
+	}
+	g := governorLine{ok: true}
+	g.fiveNow, g.fiveNext, g.fiveOK = windowOf(base.Windows["five_hour"])
+	g.sevenNow, g.sevenNext, g.sevenOK = windowOf(base.Windows["seven_day"])
+	if *base.Effect != "no restriction declared" {
+		g.tier = *base.Effect
+	}
+	return renderLine(g), true
+}
+
+func windowOf(w govWindowJSON) (now, next int, ok bool) {
+	if !w.Published || w.Pct == nil {
+		return 0, -1, false
+	}
+	next = -1
+	if w.Next != nil {
+		next = *w.Next
+	}
+	return *w.Pct, next, true
 }
 
 // governorLine is one parsed `st crew --governor` answer.
@@ -163,7 +235,11 @@ const approachingBy = 8
 
 // renderGovernor is the pure display half, so every state is testable without st.
 func renderGovernor(out string) string {
-	g := parseGovernor(out)
+	return renderLine(parseGovernor(out))
+}
+
+// renderLine draws one parsed governor answer, whichever form it came from.
+func renderLine(g governorLine) string {
 	switch {
 	case g.off:
 		// shanty is usable without a governor; do not nag about a feature the

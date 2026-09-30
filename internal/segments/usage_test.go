@@ -1,6 +1,9 @@
 package segments
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // strip removes tmux colour markup so a test asserts on TEXT, not styling.
 func strip(s string) string {
@@ -175,5 +178,65 @@ func TestGovernorPerLaneLostAndUnpublishedStayHonest(t *testing.T) {
 	got := strip(renderGovernor("base ok ?/?/? 36/70/5 live 9/9 policy=vati freshest[seven_day@vati] no restriction declared\n"))
 	if got != "Δ ?5h · 36%7d" {
 		t.Fatalf("an unpublished window must read ?5h, never a number: %q", got)
+	}
+}
+
+// aegis-apfuey step 2: the bar pins `st crew --governor --json` v1. Shaped from
+// the real output on vati (2026-09-30), trimmed to the fields the bar reads plus
+// neighbours it must ignore.
+const stGovernorJSONv1 = `{"version": 1, "scope": "fleet", "host": "vati", "complete": true,
+ "governors": {
+  "base": {"live": 9, "max_agents": 9, "signal_lost": false, "why": "five_hour 35%; seven_day 36%",
+   "windows": {"five_hour": {"published": true, "pct": 35, "next": 70, "reset_seconds": 1228},
+               "seven_day": {"published": true, "pct": 36, "next": 70, "reset_seconds": 535228}},
+   "effect": "no restriction declared"},
+  "codex": {"live": 0, "max_agents": 9, "signal_lost": false,
+   "windows": {"five_hour": {"published": false, "pct": null, "next": null, "reset_seconds": null},
+               "seven_day": {"published": true, "pct": 100, "next": null, "reset_seconds": 255595}},
+   "effect": "dispatch only P0 and above"}},
+ "balance": {"prefer": "codex"}}`
+
+func TestGovernorJSONRendersTheBaseLane(t *testing.T) {
+	out, ok := renderGovernorJSON(stGovernorJSONv1)
+	if !ok || strip(out) != "Δ 35%5h · 36%7d" {
+		t.Fatalf("ok=%v got %q", ok, strip(out))
+	}
+	if contains(out, colRed) {
+		t.Fatal("the codex lane's P0 floor must not paint the Claude bar red")
+	}
+}
+
+func TestGovernorJSONUnknownVersionIsLoudNotBlind(t *testing.T) {
+	// The CONTROL sattler asked for: a schema this bar does not know must say so.
+	out, ok := renderGovernorJSON(strings.Replace(stGovernorJSONv1, `"version": 1`, `"version": 2`, 1))
+	if !ok || !strings.Contains(strip(out), "usage schema v2 unsupported") {
+		t.Fatalf("ok=%v got %q", ok, strip(out))
+	}
+}
+
+func TestGovernorJSONWithoutBarFieldsFallsBackToProse(t *testing.T) {
+	// An st from before the windows/effect fields: ok=false, so Render falls back.
+	old := `{"version": 1, "governors": {"base": {"live": 9, "signal_lost": false, "readings": {}}}}`
+	if _, ok := renderGovernorJSON(old); ok {
+		t.Fatal("a v1 answer without windows must fall back, not render")
+	}
+	if _, ok := renderGovernorJSON("not json"); ok {
+		t.Fatal("unparseable output must fall back, not render")
+	}
+}
+
+func TestGovernorJSONTierLostAndUnpublished(t *testing.T) {
+	tier := strings.Replace(stGovernorJSONv1, `"effect": "no restriction declared"`, `"effect": "dispatch only P1 and above"`, 1)
+	out, _ := renderGovernorJSON(tier)
+	if !contains(out, colRed) || !strings.Contains(strip(out), "P1+ ONLY") {
+		t.Fatalf("an engaged base tier must be red and teach: %q", strip(out))
+	}
+	lost := strings.Replace(stGovernorJSONv1, `"signal_lost": false, "why"`, `"signal_lost": true, "why"`, 1)
+	if out, _ := renderGovernorJSON(lost); !strings.Contains(strip(out), "usage ?") {
+		t.Fatalf("a lost base signal must stay loud: %q", strip(out))
+	}
+	unpub := strings.Replace(stGovernorJSONv1, `"five_hour": {"published": true, "pct": 35, "next": 70`, `"five_hour": {"published": false, "pct": null, "next": null`, 1)
+	if out, _ := renderGovernorJSON(unpub); strip(out) != "Δ ?5h · 36%7d" {
+		t.Fatalf("an unpublished window reads ?5h, never a number: %q", strip(out))
 	}
 }
