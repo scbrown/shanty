@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The `usage` segment reads st's per-lane governor output again. `st crew
+  --governor` moved from one line (`ok 45/50 24/45`) to one line per lane
+  (`base ok 34/70/1644 ...`, then codex, balance and a roster), so the first
+  token became the lane name and the bar showed `⚠ usage ?` on every refresh
+  while st exited 0. The bar now shows the `base` (Claude) lane, accepts
+  `now/next/reset` triples, and reads the tier from after `freshest[...]`; the
+  codex lane's dispatch floor does not leak onto it (aegis-apfuey).
+
 - The `cpu` and `mem` segments report real numbers on macOS. Both read `/proc`,
   which a BSD userland does not have, so on a Mac the bar permanently showed
   `cpu n/a mem n/a` — asking a kernel that does not answer and rendering the
