@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The `usage` segment reads st's versioned JSON (`st crew --governor --json`,
+  version 1) instead of its prose, so the next change to st's prose cannot
+  silently blind the bar again. An unknown schema version renders a loud
+  `usage schema vN unsupported`; an st without the bar's fields falls back to
+  the prose parser (aegis-apfuey).
+
+## [0.4.1] - 2026-09-30
+
 ### Fixed
 
 - The `usage` segment reads st's per-lane governor output again. `st crew
