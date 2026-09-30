@@ -69,7 +69,8 @@ type governorLine struct {
 // a stale number while the governor is blind would silently undo the governor's
 // whole fail-safe, which is that blindness ALARMS every pass.
 func parseGovernor(s string) governorLine {
-	f := strings.Fields(strings.TrimSpace(s))
+	line := governingLine(s)
+	f := strings.Fields(line)
 	if len(f) == 0 {
 		return governorLine{}
 	}
@@ -90,24 +91,65 @@ func parseGovernor(s string) governorLine {
 		ok:      true,
 		fiveNow: five, fiveNext: fiveNext, fiveOK: fiveOK,
 		sevenNow: seven, sevenNext: sevenNext, sevenOK: sevenOK,
-		tier: strings.Join(f[3:], " "),
+		tier: tierOf(f[3:]),
 	}
 }
 
-// splitBudget reads `now/next`; next is -1 when st printed `-` (no higher tier),
-// and ok is false for `?/?` (the producer does not publish that window).
+// governingLine picks the line the bar is about (aegis-apfuey). st used to print
+// ONE line, `ok 45/50 24/45 [tier]`. It now prints one line PER LANE, then a
+// balance line and a roster:
+//
+//	base ok 34/70/1644 36/70/535644 live 9/9 policy=vati freshest[...] no restriction declared
+//	codex ok ?/?/? 100/-/256011 live 0/9 policy=vati freshest[...] dispatch only P0 and above
+//	balance 1.82x — prefer codex (...)
+//
+// The first token became the lane name, the parser fell to its blind branch, and
+// the bar read "usage ?" on every refresh while st exited 0. The bar shows the
+// BASE lane (the Claude budget), with the lane name stripped so the rest reads
+// in the old shape. The legacy single line and `off` still parse unchanged.
+func governingLine(s string) string {
+	lines := strings.Split(strings.TrimSpace(s), "\n")
+	for _, l := range lines {
+		f := strings.Fields(l)
+		if len(f) > 1 && f[0] == "base" {
+			return strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(l), "base"))
+		}
+	}
+	return strings.TrimSpace(lines[0])
+}
+
+// tierOf reads the engaged tier from what follows the two budgets. The lane
+// form carries `live N/M policy=H freshest[...]` before st's effect() sentence,
+// and says "no restriction declared" when nothing is engaged; the legacy form
+// carried the tier label directly.
+func tierOf(rest []string) string {
+	s := strings.Join(rest, " ")
+	if i := strings.Index(s, "freshest["); i >= 0 {
+		if j := strings.Index(s[i:], "]"); j >= 0 {
+			s = strings.TrimSpace(s[i+j+1:])
+		}
+	}
+	if s == "no restriction declared" {
+		return ""
+	}
+	return s
+}
+
+// splitBudget reads `now/next` or `now/next/reset`; next is -1 when st printed `-`
+// (no higher tier), and ok is false for `?` (the producer does not publish that
+// window). The reset field is not shown by the bar.
 func splitBudget(s string) (now, next int, ok bool) {
-	a, b, found := strings.Cut(s, "/")
-	if !found {
+	parts := strings.Split(s, "/")
+	if len(parts) < 2 {
 		return 0, -1, false
 	}
-	n, err := strconv.Atoi(a)
+	n, err := strconv.Atoi(parts[0])
 	if err != nil {
 		return 0, -1, false
 	}
 	nx := -1
-	if b != "-" {
-		if v, err := strconv.Atoi(b); err == nil {
+	if parts[1] != "-" {
+		if v, err := strconv.Atoi(parts[1]); err == nil {
 			nx = v
 		}
 	}
